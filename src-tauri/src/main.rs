@@ -69,6 +69,57 @@ fn main() {
                 let _ = w.set_ignore_cursor_events(true);
             }
 
+            // 系统托盘：打开论坛 / 设置 / 开机自启 / 退出
+            {
+                use tauri::menu::{CheckMenuItem, Menu, MenuItem};
+                use tauri::tray::TrayIconBuilder;
+                use tauri_plugin_autostart::ManagerExt as _;
+                use tauri_plugin_opener::OpenerExt as _;
+
+                let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
+                let open_i = MenuItem::with_id(app, "open", "打开论坛", true, None::<&str>)?;
+                let settings_i = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
+                let autostart_i = CheckMenuItem::with_id(
+                    app, "autostart", "开机自启", true, autostart_on, None::<&str>,
+                )?;
+                let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&open_i, &settings_i, &autostart_i, &quit_i])?;
+
+                let autostart_item = autostart_i.clone();
+                TrayIconBuilder::with_id("main")
+                    .icon(app.default_window_icon().expect("no window icon").clone())
+                    .tooltip("微趣趣线报网 · 桌面通知")
+                    .menu(&menu)
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(move |app, event| {
+                        match event.id.as_ref() {
+                            "open" => {
+                                let base = app
+                                    .try_state::<std::sync::Arc<std::sync::Mutex<state::SharedState>>>()
+                                    .map(|s| s.lock().expect("state lock").cfg.forum_base.clone())
+                                    .unwrap_or_else(|| "https://bbs.weiququ.cn".into());
+                                let _ = app.opener().open_url(base, None::<&str>);
+                            }
+                            "settings" => {
+                                let _ = commands::open_settings_window(app);
+                            }
+                            "autostart" => {
+                                let now_on = if app.autolaunch().is_enabled().unwrap_or(false) {
+                                    let _ = app.autolaunch().disable();
+                                    false
+                                } else {
+                                    let _ = app.autolaunch().enable();
+                                    true
+                                };
+                                let _ = autostart_item.set_checked(now_on);
+                            }
+                            "quit" => app.exit(0),
+                            _ => {}
+                        }
+                    })
+                    .build(app)?;
+            }
+
             // 两个后台任务：数据轮询 + 光标穿透判定（方案一'）
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(poller::run_poller(
@@ -103,7 +154,8 @@ fn main() {
             commands::get_settings,
             commands::save_window_pos,
             commands::save_settings,
-            commands::report_ui_rects
+            commands::report_ui_rects,
+            commands::open_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

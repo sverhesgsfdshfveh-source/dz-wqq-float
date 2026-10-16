@@ -4,7 +4,7 @@ use crate::config::{self, clamp_interval, Config, SourceKind};
 use crate::state::SharedState;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 /// 配置文件路径（setup 时 manage 注入）
@@ -84,4 +84,30 @@ pub fn report_ui_rects(state: tauri::State<'_, Arc<Mutex<SharedState>>>, rects: 
     if let Ok(mut s) = state.lock() {
         s.ui_rects = rects;
     }
+}
+
+/// 打开/显示设置窗（托盘菜单与球右键菜单共用）
+pub fn open_settings_window(app: &AppHandle) -> Result<(), String> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    } else {
+        WebviewWindowBuilder::new(
+            app,
+            "settings",
+            WebviewUrl::App("settings.html".into()),
+        )
+        .title("wqq-float 设置")
+        .inner_size(420.0, 410.0)
+        .resizable(false)
+        .build()
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_settings(app: AppHandle) -> Result<(), String> {
+    open_settings_window(&app)
 }

@@ -1,0 +1,28 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: #FAF9F5; color: #3D3929; padding: 22px 24px;
+}
+h1 { font-size: 17px; margin-bottom: 16px; font-weight: 700; }
+label { display: block; font-size: 13px; color: #6B6353; margin: 12px 0 4px; }
+label.inline { display: inline-flex; align-items: center; gap: 6px; color: #3D3929; margin: 0; }
+input[type=text], input[type=number], select {
+  width: 100%; padding: 8px 10px; border: 1px solid #DDD5C7; border-radius: 8px;
+  font: inherit; background: #fff; color: #3D3929;
+}
+input[type=checkbox] { width: 15px; height: 15px; }
+.row { margin-top: 14px; }
+.status { margin-top: 14px; font-size: 12px; color: #8A8272; }
+#via.warn { color: #D96B2B; }
+.btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+button {
+  padding: 8px 18px; border-radius: 8px; border: 1px solid #DDD5C7;
+  font: inherit; cursor: pointer; background: #fff;
+}
+button.primary { background: #FF8B3D; border-color: #FF8B3D; color: #fff; font-weight: 600; }
+button.primary:hover { background: #F07A2C; }
+button.ghost:hover { border-color: #FF8B3D; color: #FF8B3D; }
+.about { margin-top: 16px; font-size: 12px; color: #A39B8B; }
+#msg { margin-top: 10px; font-size: 13px; min-height: 20px; }
+#msg.ok { color: #2E7D32; }
+#msg.err { color: #C62828; }

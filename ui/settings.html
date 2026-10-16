@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>wqq-float 设置</title>
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <h1>悬浮通知设置</h1>
+
+  <label>论坛地址</label>
+  <input id="forum-base" type="text" placeholder="https://bbs.weiququ.cn">
+
+  <label>数据源</label>
+  <select id="source">
+    <option value="wqq">微趣趣增强（秒级）</option>
+    <option value="rss">普通 DZ 论坛 RSS（分钟级）</option>
+  </select>
+
+  <label>轮询间隔（3~300 秒）</label>
+  <input id="interval" type="number" min="3" max="300" step="1">
+
+  <div class="row">
+    <label class="inline"><input id="autostart" type="checkbox"> 开机自启</label>
+  </div>
+
+  <div class="status">当前通道：<span id="via">—</span></div>
+
+  <div class="btns">
+    <button id="check-update" class="ghost">检查更新</button>
+    <button id="save" class="primary">保存</button>
+  </div>
+
+  <div class="about">wqq-float v0.1.0 · 微趣趣线报网桌面通知</div>
+  <div id="msg"></div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

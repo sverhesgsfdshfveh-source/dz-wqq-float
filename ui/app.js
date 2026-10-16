@@ -79,8 +79,8 @@ menu.addEventListener('click', (e) => {
   if (!act) return;
   menu.hidden = true;
   if (act === 'forum') invoke('open_url', { url: forumBase });
+  if (act === 'settings') invoke('open_settings').catch(() => {});
   if (act === 'quit') invoke('quit_app');
-  // 'settings' 由 Task 9 接入（托盘/设置窗）
 });
 
 // ---------- 可见矩形上报（方案一' 穿透补偿核心） ----------
