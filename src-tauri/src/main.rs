@@ -2,6 +2,8 @@
 
 use tauri::Manager;
 
+mod source;
+
 fn main() {
     tauri::Builder::default()
         // single-instance 必须最先注册（官方要求），重复启动时聚焦已有悬浮窗
