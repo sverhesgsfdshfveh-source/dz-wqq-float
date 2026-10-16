@@ -3,6 +3,8 @@
 use tauri::Manager;
 
 mod source;
+mod config;
+mod state;
 
 fn main() {
     tauri::Builder::default()
