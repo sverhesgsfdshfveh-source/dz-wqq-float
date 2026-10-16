@@ -1,0 +1,13 @@
+{
+  "identifier": "default",
+  "description": "wqq-float 全部窗口的权限（悬浮窗与设置窗共用）",
+  "windows": ["float", "settings"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "opener:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
+  ]
+}

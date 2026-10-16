@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>wqq-float</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: transparent; height: 100%; overflow: hidden; }
+  body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; }
+
+  /* 悬浮组合：右缘垂直居中，球 + (长条/展开卡 纵列) */
+  #hud {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+
+  /* 悬浮球：48px 圆，favicon，拖动柄 */
+  #ball {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 12px rgba(0,0,0,.35);
+    cursor: pointer; user-select: none;
+  }
+  #ball img { width: 30px; height: 30px; pointer-events: none; }
+
+  /* 长条：宽度随标题 fit-content，超 600px 省略号 */
+  #col { display: flex; flex-direction: column; max-width: 640px; }
+  #bar {
+    background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(12px);
+    border-radius: 12px; padding: 10px 16px;
+    display: flex; align-items: center; gap: 12px;
+    width: fit-content; max-width: 640px;
+    color: #eee; cursor: pointer;
+    box-shadow: 0 2px 12px rgba(0,0,0,.35);
+  }
+  #title {
+    max-width: 600px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    font-size: 14px;
+  }
+  #time { font-size: 12px; color: #9a9a9a; flex-shrink: 0; }
+
+  /* 展开卡：hover #col 时自长条下方缓动展开 */
+  #card {
+    background: rgba(20, 20, 20, 0.92); backdrop-filter: blur(14px);
+    border-radius: 12px; margin-top: 4px;
+    padding: 0 16px;
+    max-height: 0; opacity: 0; overflow: hidden;
+    color: #ddd;
+    transition: max-height 250ms cubic-bezier(.4,0,.2,1), opacity 250ms cubic-bezier(.4,0,.2,1), padding 250ms cubic-bezier(.4,0,.2,1);
+  }
+  #col:hover #card { max-height: 400px; opacity: 1; padding: 12px 16px; }
+  #card h2 { font-size: 15px; color: #fff; margin-bottom: 6px; line-height: 1.4; }
+  #card .meta { font-size: 12px; color: #9a9a9a; margin-bottom: 8px; }
+  #card .summary { font-size: 13px; line-height: 1.7; max-height: 260px; overflow: hidden; }
+</style>
+</head>
+<body>
+  <div id="hud">
+    <div id="ball" data-tauri-drag-region title="拖动移动；单击打开论坛">
+      <img src="assets/favicon.ico" alt="">
+    </div>
+    <div id="col">
+      <div id="bar" title="单击打开帖子">
+        <span id="title">【科技】SpaceX 成功发射“星舰”完成第四次轨道飞行测试，全部目标达成</span>
+        <span id="time">6分钟前</span>
+      </div>
+      <div id="card">
+        <h2 id="card-title">【科技】SpaceX 成功发射“星舰”完成第四次轨道飞行测试，全部目标达成</h2>
+        <div class="meta">
+          <span id="card-author">作者</span> · <span id="card-forum">综合线报</span> ·
+          <span id="card-time">6分钟前</span> · 回复 <span id="card-replies">0</span> · 浏览 <span id="card-views">12</span>
+        </div>
+        <div class="summary" id="card-summary">SpaceX 星舰（Starship）今日完成第四次轨道飞行测试……（spike 占位文本）鼠标移入长条应看到本卡片向下缓动展开，移出后收起。</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // spike 验证 3：drag region 上单击事件是否正常触发
+    document.getElementById('ball').addEventListener('click', () => console.log('[spike] ball click'));
+    document.getElementById('bar').addEventListener('click', () => console.log('[spike] bar click'));
+    document.getElementById('title').addEventListener('click', () => console.log('[spike] title click'));
+  </script>
+</body>
+</html>
