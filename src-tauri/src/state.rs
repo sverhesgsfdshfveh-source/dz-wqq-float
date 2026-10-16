@@ -8,6 +8,10 @@ pub struct SharedState {
     pub cfg: Config,
     /// wqq 通道连败切到 RSS 兜底后置 true（供 conn-state 展示）
     pub via_rss_fallback: bool,
+    /// 前端上报的可见 UI 矩形（物理像素，[x,y,w,h] 相对窗口客户区）——方案一' 光标判定用
+    pub ui_rects: Vec<[f64; 4]>,
+    /// 窗口位置已变（Moved 事件置位），poller 每轮落盘后清除
+    pub cfg_pos_dirty: bool,
 }
 
 impl SharedState {
@@ -16,6 +20,8 @@ impl SharedState {
             watermark: 0,
             cfg,
             via_rss_fallback: false,
+            ui_rects: Vec::new(),
+            cfg_pos_dirty: false,
         }
     }
 

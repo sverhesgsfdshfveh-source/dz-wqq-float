@@ -106,10 +106,15 @@ use crate::log as wqqlog;
 use crate::source::{RssSource, WqqApiSource};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// 轮询主循环：快照共享状态 → 选源 → poll → 推水位/发事件 → 按退避睡眠。
-pub async fn run_poller(app: AppHandle, state: Arc<Mutex<crate::state::SharedState>>, log_dir: PathBuf) {
+pub async fn run_poller(
+    app: AppHandle,
+    state: Arc<Mutex<crate::state::SharedState>>,
+    log_dir: PathBuf,
+    config_path: PathBuf,
+) {
     let mut failures: u32 = 0;
     let mut last_base = String::new();
     let mut wqq_src: Option<WqqApiSource> = None;
@@ -125,6 +130,18 @@ pub async fn run_poller(app: AppHandle, state: Arc<Mutex<crate::state::SharedSta
                 s.cfg.source.clone(),
             )
         };
+
+        // 窗口位置有变动（Moved 事件标脏）→ 落盘
+        let pos_dirty = {
+            let mut s = state.lock().expect("state lock poisoned");
+            let d = s.cfg_pos_dirty;
+            s.cfg_pos_dirty = false;
+            d
+        };
+        if pos_dirty {
+            let cfg = state.lock().expect("state lock poisoned").cfg.clone();
+            let _ = crate::config::save(&config_path, &cfg);
+        }
 
         // 换论坛地址时重建源（reqwest 连接池随 base 失效）
         if base != last_base || wqq_src.is_none() {
@@ -176,5 +193,39 @@ pub async fn run_poller(app: AppHandle, state: Arc<Mutex<crate::state::SharedSta
         }
 
         tokio::time::sleep(next_delay(Duration::from_secs(interval), failures)).await;
+    }
+}
+
+/// 方案一' 光标轮询（spike 裁定）：10ms 检查光标是否落在前端上报的可见矩形内，
+/// 动态切换 set_ignore_cursor_events——矩形内正常交互，矩形外整窗穿透。
+pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::SharedState>>) {
+    let mut ignore = true; // main setup 已设初始穿透
+    loop {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let Some(w) = app.get_webview_window("float") else { continue };
+        let rects = state
+            .lock()
+            .map(|s| s.ui_rects.clone())
+            .unwrap_or_default();
+        if rects.is_empty() {
+            // 前端尚未上报：保持穿透
+            if !ignore {
+                ignore = true;
+                let _ = w.set_ignore_cursor_events(true);
+            }
+            continue;
+        }
+        let (Ok(cur), Ok(win)) = (app.cursor_position(), w.outer_position()) else {
+            continue;
+        };
+        let dx = cur.x - win.x as f64;
+        let dy = cur.y - win.y as f64;
+        let inside = rects
+            .iter()
+            .any(|r| dx >= r[0] && dx < r[0] + r[2] && dy >= r[1] && dy < r[1] + r[3]);
+        if inside == ignore {
+            ignore = !inside;
+            let _ = w.set_ignore_cursor_events(ignore);
+        }
     }
 }
