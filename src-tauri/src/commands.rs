@@ -206,42 +206,73 @@ pub fn open_settings(app: AppHandle) -> Result<(), String> {
     open_settings_window(&app)
 }
 
-// ---- Windows 透明窗"镂空"（colorkey 抠图） ----
-// 原理与约束见 main.rs setup 注释。关键点：
-// - 穿透切换（set_ignore_cursor_events）经 tao apply_diff 重写 GWL_EXSTYLE：
-//   切到"可交互"时 tao 的样式表里没有 WS_EX_LAYERED（它只给 IGNORE_CURSOR_EVENT
-//   加 LAYERED），LAYERED 标志被整个移除 → 分层属性清空、SetLayeredWindowAttributes
-//   返回 ERROR_INVALID_PARAMETER。所以补设必须先把 WS_EX_LAYERED 加回 GWL_EXSTYLE。
+// ---- 窗口形状裁剪（Windows region 镂空） ----
+// colorkey 路线因 LWA_COLORKEY 的像素级 hit-test 与 WebView2 的 mousemove 冲突
+// （hover/拖动全失效）废弃，教训记于 main.rs setup 与 release-checklist。
+// region 是 1bit 几何裁剪、边缘有锯齿——由前端把每个形状外扩 1 物理像素抵消
+// （app.js collectShapes：锯齿像素落在 CSS 形状内被覆盖）。
 #[cfg(windows)]
-pub fn apply_colorkey(w: &tauri::WebviewWindow) {
-    use windows::Win32::Foundation::{COLORREF, HWND};
-    use windows::Win32::Graphics::Dwm::{DwmEnableBlurBehindWindow, DWM_BLURBEHIND};
-    use windows::Win32::Graphics::Gdi::HRGN;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, GWL_EXSTYLE,
-        LWA_ALPHA, LWA_COLORKEY, WS_EX_LAYERED,
-    };
-    unsafe {
-        let _ = w.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
-        let Ok(h) = w.hwnd() else { return };
-        let hwnd = HWND(h.0);
-        // 1) 确保 WS_EX_LAYERED 在位（tao 切可交互时会把它抹掉）
-        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
-        if ex & WS_EX_LAYERED.0 == 0 {
-            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_LAYERED.0) as isize);
-        }
-        // 2) 关 DWM 灰雾
-        let bb = DWM_BLURBEHIND {
-            dwFlags: 1, // DWM_BB_ENABLE
-            fEnable: false.into(),
-            hRgnBlur: HRGN(std::ptr::null_mut()),
-            fTransitionOnMaximized: false.into(),
-        };
-        let _ = DwmEnableBlurBehindWindow(hwnd, &bb);
-        // 3) colorkey+alpha 一次并设（0x3）：单设 colorkey 会被 wry 的 LWA_ALPHA 覆盖
-        let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0x000000), 255, LWA_COLORKEY | LWA_ALPHA);
+#[tauri::command]
+pub fn set_window_region(app: AppHandle, shapes: Vec<Vec<f64>>) -> Result<(), String> {
+    #[link(name = "gdi32")]
+    extern "system" {
+        fn CreateRectRgn(x1: i32, y1: i32, x2: i32, y2: i32) -> isize;
+        fn CreateEllipticRgn(x1: i32, y1: i32, x2: i32, y2: i32) -> isize;
+        fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) -> isize;
+        fn CombineRgn(dst: isize, src1: isize, src2: isize, mode: i32) -> i32;
+        fn DeleteObject(obj: isize) -> i32;
     }
+    #[link(name = "user32")]
+    extern "system" {
+        fn SetWindowRgn(hwnd: isize, rgn: isize, redraw: i32) -> i32;
+    }
+
+    let w = app
+        .get_webview_window("float")
+        .ok_or_else(|| "float window not found".to_string())?;
+    let hwnd = w.hwnd().map_err(|e| e.to_string())?;
+    unsafe {
+        let dest = CreateRectRgn(0, 0, 0, 0);
+        if dest == 0 {
+            return Err("CreateRectRgn failed".into());
+        }
+        for s in &shapes {
+            if s.len() < 5 {
+                continue;
+            }
+            let kind = s[0] as i32;
+            let x = s[1].round() as i32;
+            let y = s[2].round() as i32;
+            let ww = s[3].round() as i32;
+            let hh = s[4].round() as i32;
+            if ww <= 0 || hh <= 0 {
+                continue;
+            }
+            let rgn = match kind {
+                0 => CreateEllipticRgn(x, y, x + ww, y + hh),
+                2 => CreateRectRgn(x, y, x + ww, y + hh),
+                _ => {
+                    let r = s.get(5).copied().unwrap_or(0.0).max(0.0).round() as i32;
+                    CreateRoundRectRgn(x, y, x + ww, y + hh, r * 2, r * 2)
+                }
+            };
+            if rgn != 0 {
+                CombineRgn(dest, dest, rgn, 2); // RGN_OR
+                DeleteObject(rgn);
+            }
+        }
+        // 成功后 region 归系统所有，不能再 DeleteObject
+        if SetWindowRgn(hwnd.0 as isize, dest, 1) == 0 {
+            DeleteObject(dest);
+            return Err("SetWindowRgn failed".into());
+        }
+    }
+    Ok(())
 }
 
 #[cfg(not(windows))]
-pub fn apply_colorkey(_w: &tauri::WebviewWindow) {}
+#[tauri::command]
+pub fn set_window_region(app: AppHandle, shapes: Vec<Vec<f64>>) -> Result<(), String> {
+    let _ = (app, shapes);
+    Ok(())
+}

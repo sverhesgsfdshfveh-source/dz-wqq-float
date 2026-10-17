@@ -37,33 +37,16 @@ fn main() {
             // 悬浮窗位置：存档有效则恢复（clamp 回可视区），否则主屏右缘垂直居中；
             // 初始设为鼠标穿透（方案一'），等前端上报可见矩形后由光标轮询接管
             if let Some(w) = app.get_webview_window("float") {
-                // ===== Windows 10 透明窗"镂空"方案（colorkey 抠图） =====
-                // Win10 上 tao 为透明窗口启用 DWM blur-behind，透明区域会带一层灰雾，
-                // 白色桌面下整个矩形窗体轮廓可见；且 wry 不走 per-pixel alpha（DirectComposition）。
-                // 三步走（需在 WebView2 就绪后执行）：
-                //   1. set_background_color(0,0,0,0)：WebView2 背景全透明，
-                //      其表面 alpha 被合成丢弃后透明区呈纯黑
-                //   2. DwmEnableBlurBehindWindow(fEnable=FALSE)：关掉 DWM 灰雾
-                //   3. SetLayeredWindowAttributes(colorkey=纯黑)：纯黑像素全透明
-                //      —— CSS 形状边缘的抗锯齿过渡像素不是纯黑，完整保留，边缘平滑无锯齿
-                // 注意：UI 内禁止出现纯黑像素（当前主题最深处 ~RGB(11,13,19)，安全）
-                // ⚠️ 穿透切换（set_ignore_cursor_events）会重写 GWL_EXSTYLE 导致分层属性
-                // 被重置——poller.rs 的光标 watcher 每次切换后都会调 apply_colorkey 补设。
-                let w_ck = w.clone();
-                std::thread::spawn(move || {
-                    // wry/tao 在启动与 resize 后会重设分层属性，启动期多轮补设
-                    for (delay, tag) in [
-                        (600, "t+600ms"),
-                        (800, "t+1400ms"),
-                        (1000, "t+2400ms"),
-                        (1200, "t+3600ms"),
-                        (1400, "t+5000ms"),
-                    ] {
-                        std::thread::sleep(std::time::Duration::from_millis(delay));
-                        crate::commands::apply_colorkey(&w_ck);
-                        eprintln!("[wqq] colorkey applied: {tag}");
-                    }
-                });
+                // ===== Windows 10 透明窗"镂空"方案（region 裁剪） =====
+                // 历史教训（勿回退）：
+                // 1. tao 默认给透明窗开 DWM blur-behind → 透明区带灰雾，白桌面下矩形轮廓可见
+                // 2. colorkey（SetLayeredWindowAttributes LWA_COLORKEY）能平滑镂空，
+                //    但其像素级 hit-test 与 WebView2 的 mousemove 冲突：hover/拖动全失效
+                // 3. region（SetWindowRgn）裁出 UI 形状：鼠标交互完整、无灰雾，
+                //    边缘有 1bit 锯齿 → 由前端把每个形状外扩 1 物理像素抵消
+                //    （app.js collectShapes，锯齿像素落在 CSS 形状内被覆盖）
+                // 窗口背景保持全透明；region 由前端 reportRects 时一并上报更新。
+                let _ = w.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
                 let mons = w.available_monitors().unwrap_or_default();
                 let ws = w.outer_size().unwrap_or(tauri::PhysicalSize::new(760, 84));
                 let restored = {
@@ -242,6 +225,7 @@ fn main() {
             commands::set_dragging,
             commands::move_window_by,
             commands::resize_float,
+            commands::set_window_region,
             commands::open_settings
         ])
         .run(tauri::generate_context!())

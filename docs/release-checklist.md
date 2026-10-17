@@ -112,18 +112,16 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 布局联动 | **卡片 top 66→88px**（球底 +8）、`CARD_TOP` 同步；悬停桥接带 14→24px（`#barwrap::after` 与 `collectRects` 扩展同时改）；窗口初始高 84→100 |
 | 注意 | 实测 `cargo build` 的 debug exe **同样嵌入 ui/ 资源**，改前端后必须重新编译再重启（原"改前端不用编译"记录作废） |
 
-## 透明窗"镂空"（2026-10-17 第六轮：colorkey 抠图，消除矩形窗体轮廓）
+## 透明窗"镂空"（2026-10-17 第六轮：region 裁剪 + 1px 外扩抵消锯齿）
 
 | 项 | 实现 |
 |---|---|
 | 问题 | Win10 上 tao 为透明窗口启用 DWM blur-behind，透明区域带一层灰雾——白色桌面下整个矩形窗体轮廓清晰可见，"镂空"完全失效 |
-| 走过的弯路 | ①`SetWindowRgn` 把窗口裁成球+胶囊形状：矩形轮廓消失但 **region 是纯几何位掩码，边缘无抗锯齿（微软文档明确）**，严重锯齿，弃用；②`SetWindowCompositionAttribute` accent blur/acrylic：色雾更重，弃用 |
-| 最终方案 | **colorkey 抠图**（`main.rs` setup 后台线程，t+600ms 起五轮补设）：①`set_background_color(0,0,0,0)` WebView2 全透明（alpha 被合成丢弃→透明区呈纯黑）；②`DwmEnableBlurBehindWindow(fEnable=FALSE)` 关灰雾；③`SetLayeredWindowAttributes(colorkey=纯黑, flags=LWA_COLORKEY|LWA_ALPHA)` 纯黑像素全透明。CSS 形状边缘的抗锯齿过渡像素非纯黑 → 完整保留，**边缘平滑无锯齿** |
-| 为什么五轮补设 | wry/tao 会在启动后与 resize 时用 `LWA_ALPHA` 覆盖分层属性（单设 colorkey 会被冲掉）；必须一次调用并设 `LWA_COLORKEY|LWA_ALPHA`（0x3），并在多个时间点重设 |
-| **穿透切换会冲掉 colorkey（关键坑）** | 光标 watcher 每次切换 `set_ignore_cursor_events` 都会经 tao `apply_diff` 重写 `GWL_EXSTYLE`。切"穿透"时 tao 会带上 `WS_EX_LAYERED`（分层属性被重置）；切"可交互"时 tao 的样式表里**没有 LAYERED，标志被整个移除** → `SetLayeredWindowAttributes` 返回 ERROR_INVALID_PARAMETER，悬停时整窗变黑。修复：`commands::apply_colorkey()` 先 `GetWindowLongPtrW/SetWindowLongPtrW` 把 `WS_EX_LAYERED` 加回 `GWL_EXSTYLE`，再关 DWM blur、设 colorkey+alpha（0x3）；watcher 每次穿透切换后立即调用。压测：悬停↔移出交替 8 轮 + 拖动 2 次 + 卡片开合，LWA 全程稳定 0x3、画面镂空正常 |
-| CSS 连带约束 | **禁止一切黑色/深色外投影与外辉光**（`box-shadow` 的 offset/blur 外层、`--ball-drop` 等）——半透明黑在表面上是深色像素，colorkey 抠不掉，会显形为灰雾。立体感全部改用 `inset` 阴影 + 1px 边框实现；`#ball.warn` 警示圈也改 inset |
-| 采坑记录 | 排查时把**桌面壁纸深色区/图标文字**误判为灰雾（镂空成功后桌面真实透出）；判定方法：把窗口移到纯白区域对比窗口内外颜色 |
-| 备选正解（未走） | per-pixel alpha：WebView2 `ICoreWebView2CompositionController`（visual hosting）+ DirectComposition 可真正逐像素透明，但 wry 的 HWND hosting 不走这条路，需自行集成 WebView2 COM，改造代价大；wqq-float 规模下 colorkey 是最优工程折中 |
+| 三条路线实测裁定 | ①colorkey（LWA_COLORKEY）：视觉镂空完美平滑，**但其像素级 hit-test 与 WebView2 的 mousemove 流冲突——hover 无反应、拖不动、卡片失效**（离散 click 反而能通，极具迷惑性），废弃；②accent blur/acrylic：色雾更重，废弃；③**region（SetWindowRgn）**：鼠标交互完整、无灰雾，唯一缺点是 1bit 裁剪边缘有锯齿 |
+| 最终方案 | **region 裁剪 + 每形状外扩 1 物理像素**：前端 `collectShapes()`（app.js）把球椭圆/胶囊圆角/进度线/卡片/菜单的 getBoundingClientRect 各方向 +1px 上报，Rust `set_window_region` 命令取并集 SetWindowRgn。外扩让锯齿像素落在 CSS 形状自身边界内被覆盖，外露边缘走 CSS 抗锯齿。`reportRects`（250ms 周期 + hover/菜单等关键时机）顺带更新 region，窗口尺寸变化自动跟随 |
+| 穿透判定不变 | `ui_rects`（精确矩形）继续管鼠标穿透；region 只管视觉裁剪，两者独立 |
+| CSS 约束 | 外投影/外辉光会被 region 裁掉 → 立体感全用 inset 阴影 + 1px 边框实现（`#ball.warn` 也是 inset） |
+| 排障备忘 | region 是归系统所有的句柄，`SetWindowRgn` 成功后不能再 DeleteObject；窗口 resize 后前端自动重报新形状 |
 
 ## 常量备忘
 

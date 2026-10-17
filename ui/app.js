@@ -208,8 +208,47 @@ function collectRects() {
   if (!cmenu.hidden) push(cmenu.getBoundingClientRect());
   return rects;
 }
+// ---------- 窗口形状上报（Windows region 镂空） ----------
+// 用 SetWindowRgn 把窗口裁成「球圆 + 胶囊圆角 + 进度线 + 卡片/菜单」并集，
+// 消除矩形窗体轮廓（透明区域直接透出桌面）。region 是 1bit 裁剪、边缘有锯齿，
+// 因此每个形状**各方向外扩 1 物理像素**：锯齿像素落在 CSS 形状自身边界之内被覆盖，
+// 外露边缘走 CSS 抗锯齿（region 略大于 UI 才能盖住锯齿，故外扩而非内缩）。
+function collectShapes() {
+  const dpr = window.devicePixelRatio || 1;
+  const shapes = [];
+  const push = (kind, r, radius) => {
+    if (r.width <= 0 || r.height <= 0) return;
+    const item = [
+      kind,
+      r.left * dpr - 1,
+      r.top * dpr - 1,
+      r.width * dpr + 2,
+      r.height * dpr + 2,
+    ];
+    if (radius !== undefined) item.push(radius * dpr);
+    shapes.push(item);
+  };
+  push(0, ball.getBoundingClientRect());      // 球：椭圆
+  push(1, bar.getBoundingClientRect(), 26);   // 胶囊：圆角矩形
+  push(2, progress.getBoundingClientRect());  // 进度线：直角矩形
+  // 卡片：展开时纳入 region；收起动画期间高度极小自动跳过
+  const cr = card.getBoundingClientRect();
+  if (cr.height > 4) push(1, cr, 16);
+  if (!menu.hidden) push(1, menu.getBoundingClientRect(), 12);
+  if (!cmenu.hidden) push(1, cmenu.getBoundingClientRect(), 12);
+  return shapes;
+}
+let lastShapeSig = '';
+function updateWindowRegion() {
+  const shapes = collectShapes();
+  const sig = shapes.map((s) => s.map((v) => Math.round(v)).join(',')).join('|');
+  if (sig === lastShapeSig) return;
+  lastShapeSig = sig;
+  invoke('set_window_region', { shapes }).catch(() => {});
+}
 function reportRects() {
   invoke('report_ui_rects', { rects: collectRects() }).catch(() => {});
+  updateWindowRegion();
 }
 setInterval(reportRects, 250);
 window.addEventListener('resize', reportRects);
