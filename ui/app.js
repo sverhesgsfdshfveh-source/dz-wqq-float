@@ -121,20 +121,23 @@ function closeMenus() {
   let changed = false;
   if (!menu.hidden) { menu.hidden = true; changed = true; }
   if (!cmenu.hidden) { cmenu.hidden = true; changed = true; }
-  if (changed) reportRects();
+  if (changed) {
+    reportRects();
+    // 缩回窗口（卡片仍展开时保持卡片所需高度，由 mouseleave 负责缩）
+    if (!card.classList.contains('show')) fitWindow();
+  }
 }
 ball.addEventListener('contextmenu', (e) => {
   e.preventDefault();
-  const br = ball.getBoundingClientRect();
   menu.hidden = false;
   const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  const br = ball.getBoundingClientRect();
+  // 窗口先撑到能容下菜单（贴球下方），否则小窗口会把菜单裁掉
+  const need = Math.max(baseSize().h, br.bottom + 6 + mh + 8);
+  fitWindow(need);
   const left = Math.max(4, Math.min(br.left + br.width / 2 - mw / 2, window.innerWidth - mw - 4));
-  // 下方空间不足时翻到球上方
-  const top = (br.bottom + 6 + mh <= window.innerHeight - 4)
-    ? br.bottom + 6
-    : Math.max(4, br.top - mh - 6);
   menu.style.left = left + 'px';
-  menu.style.top = top + 'px';
+  menu.style.top = (br.bottom + 6) + 'px';
   reportRects(); // 立即上报：菜单区域马上进入可交互判定区（否则穿透导致 hover/点击失效）
 });
 // 卡片内容右键菜单：复制 / 全选（提供自绘替代，屏蔽 WebView2 默认菜单）
@@ -142,6 +145,9 @@ card.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   cmenu.hidden = false;
   const mw = cmenu.offsetWidth, mh = cmenu.offsetHeight;
+  // 窗口撑到能容下菜单（跟随鼠标位置）
+  const need = Math.max(baseSize().h, e.clientY + mh + 8);
+  fitWindow(need);
   cmenu.style.left = Math.max(4, Math.min(e.clientX, window.innerWidth - mw - 4)) + 'px';
   cmenu.style.top = Math.max(4, Math.min(e.clientY, window.innerHeight - mh - 4)) + 'px';
   reportRects();
