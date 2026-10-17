@@ -38,8 +38,34 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 轮询日志无错误（log.txt 未生成=零失败） | 通过 |
 | **待人工终验** | hover 展开动画手感、拖动+位置记忆、球右键菜单、点击打开帖子、托盘四项菜单、开机自启勾选、透明区点击穿透（方案一'） |
 
+## 验收记录（2026-10-17 用户反馈轮）
+
+| 项 | 结果 |
+|---|---|
+| Rust 单测 | 20/20 通过（新增拖动保持/超时解冻） |
+| UI 对标样板图（球换 favicon 红鹤 logo、64px 发光环、红点徽标、胶囊条、进度线、球条间隙 8px） | 通过（截图确认） |
+| 拖动 | 通过（用户实测 OK；根因修复见下） |
+| 透明窗残留边框 | 通过（`shadow: false`） |
+| 位置存档越界回落（-22 顶部越界 → 默认右缘居中） | 通过（实测） |
+| 右缘吸附（窗口移到 gap=30px 处 → 自动贴 gap=8px） | 通过（SetWindowPos 实测） |
+| 首轮数据竞态（poll 早于页面就绪 → 条空白） | 通过（前端补拉后截图确认真实帖渲染） |
+| hover 展开卡片且条不位移 | 通过（截图确认） |
+
+### 本轮修复的根因（供排障）
+
+- **拖动失效**：Tauri v2 的 `core:window:default` 权限集**不含** `allow-start-dragging`，
+  `data-tauri-drag-region` 注入脚本在 mousedown 时 invoke `plugin:window|start_dragging`
+  被 ACL 拒绝且脚本无 `.catch()` → 静默失败。已改为前端阈值拖动（位移 4px 触发）+
+  自定义 `start_drag` 命令（Rust 侧调用不受 ACL 限制）+ `set_dragging` 在拖动期冻结穿透判定。
+- **首轮条空白**：首轮 poll 常早于 WebView 页面就绪，`new-threads` emit 丢失；
+  之后水位已推进只发 `changed:0`，条永远空白。已加 `state.latest` + `get_latest_thread`
+  命令，前端加载完成后主动补拉。
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS
-- 配置：`%APPDATA%\wqq-float\config.json`；日志：同目录 `log.txt`（仅失败时写入）
+- 配置：`%APPDATA%\cn.weiququ.float\config.json`；日志：同目录 `log.txt`（仅失败时写入）
+  （Tauri `app_data_dir` 用 bundle identifier 命名，非 productName）
 - 数据接口：`wqq_notifier.php`（已在 DiscuzX5 README 二开保护清单登记）
+- 悬浮窗 760x700：球 64px + 间隙 8px + 条 max 640px；窗口右缘 6px、垂直居中，
+  拖到屏幕右缘 40px 内自动吸附（右边距 8px）
