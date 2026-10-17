@@ -26,8 +26,8 @@ pub fn quit_app(app: AppHandle) {
 }
 
 /// 托盘菜单与前端命令共用的退出实现：先落盘配置（位置可能还在脏标记里），
-/// 再强制退出——`app.exit(0)` 会等所有窗口关闭，设置窗异常时会挂起
-/// （用户表现：点击"退出"没反应）
+/// 再异步强制退出——球右键菜单走 WebView2 IPC 回调，在回调里直接 ExitProcess 会挂起
+/// （用户表现：球菜单"退出"无反应，只有托盘退出有效），故挪到独立线程延迟退出
 pub fn quit_now(app: &AppHandle) {
     if let (Some(st), Some(cp)) = (
         app.try_state::<Arc<Mutex<SharedState>>>(),
@@ -37,7 +37,10 @@ pub fn quit_now(app: &AppHandle) {
             let _ = config::save(&cp.0, &s.cfg);
         }
     }
-    std::process::exit(0);
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_millis(80));
+        std::process::exit(0);
+    });
 }
 
 #[tauri::command]
@@ -135,6 +138,8 @@ pub fn open_settings_window(app: &AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.show();
         let _ = w.set_focus();
+        // WebView2 隐藏后重新显示常不重绘（整窗白屏）→ 强制重载页面
+        let _ = w.eval("location.reload()");
     } else {
         WebviewWindowBuilder::new(
             app,

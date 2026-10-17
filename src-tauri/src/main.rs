@@ -193,6 +193,13 @@ fn main() {
                     }
                 }
             }
+            // 设置窗：X 点击改为隐藏而非销毁——销毁后运行中重建会白屏（WebView2 动态创建异常）
+            if window.label() == "settings" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::open_url,
