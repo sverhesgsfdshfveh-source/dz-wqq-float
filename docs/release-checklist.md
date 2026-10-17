@@ -120,6 +120,7 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 走过的弯路 | ①`SetWindowRgn` 把窗口裁成球+胶囊形状：矩形轮廓消失但 **region 是纯几何位掩码，边缘无抗锯齿（微软文档明确）**，严重锯齿，弃用；②`SetWindowCompositionAttribute` accent blur/acrylic：色雾更重，弃用 |
 | 最终方案 | **colorkey 抠图**（`main.rs` setup 后台线程，t+600ms 起五轮补设）：①`set_background_color(0,0,0,0)` WebView2 全透明（alpha 被合成丢弃→透明区呈纯黑）；②`DwmEnableBlurBehindWindow(fEnable=FALSE)` 关灰雾；③`SetLayeredWindowAttributes(colorkey=纯黑, flags=LWA_COLORKEY|LWA_ALPHA)` 纯黑像素全透明。CSS 形状边缘的抗锯齿过渡像素非纯黑 → 完整保留，**边缘平滑无锯齿** |
 | 为什么五轮补设 | wry/tao 会在启动后与 resize 时用 `LWA_ALPHA` 覆盖分层属性（单设 colorkey 会被冲掉）；必须一次调用并设 `LWA_COLORKEY|LWA_ALPHA`（0x3），并在多个时间点重设 |
+| **穿透切换会冲掉 colorkey（关键坑）** | 光标 watcher 每次切换 `set_ignore_cursor_events` 都会经 tao `apply_diff` 重写 `GWL_EXSTYLE`，`WS_EX_LAYERED` 重挂后分层属性（含 colorkey）被系统重置 → 卡片开合/拖动后轮廓与黑块回归。修复：`commands::apply_colorkey()` 抽成公共函数，**watcher 每次穿透切换后立即重调**；启动期五轮补设保留兜底（压测：5 次卡片开合 + 3 次拖动 + 3 次菜单开关后 LWA 稳定 0x3、画面镂空正常） |
 | CSS 连带约束 | **禁止一切黑色/深色外投影与外辉光**（`box-shadow` 的 offset/blur 外层、`--ball-drop` 等）——半透明黑在表面上是深色像素，colorkey 抠不掉，会显形为灰雾。立体感全部改用 `inset` 阴影 + 1px 边框实现；`#ball.warn` 警示圈也改 inset |
 | 采坑记录 | 排查时把**桌面壁纸深色区/图标文字**误判为灰雾（镂空成功后桌面真实透出）；判定方法：把窗口移到纯白区域对比窗口内外颜色 |
 | 备选正解（未走） | per-pixel alpha：WebView2 `ICoreWebView2CompositionController`（visual hosting）+ DirectComposition 可真正逐像素透明，但 wry 的 HWND hosting 不走这条路，需自行集成 WebView2 COM，改造代价大；wqq-float 规模下 colorkey 是最优工程折中 |

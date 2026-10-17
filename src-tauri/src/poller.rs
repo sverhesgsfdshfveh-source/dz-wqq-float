@@ -243,6 +243,8 @@ pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::S
             if ignore {
                 ignore = false;
                 let _ = w.set_ignore_cursor_events(false);
+                // 穿透切换重写 GWL_EXSTYLE 会冲掉 colorkey 分层属性 → 立即补设
+                crate::commands::apply_colorkey(&w);
             }
             continue;
         }
@@ -251,6 +253,7 @@ pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::S
             if !ignore {
                 ignore = true;
                 let _ = w.set_ignore_cursor_events(true);
+                crate::commands::apply_colorkey(&w);
             }
             continue;
         }
@@ -265,6 +268,7 @@ pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::S
         if inside == ignore {
             ignore = !inside;
             let _ = w.set_ignore_cursor_events(ignore);
+            crate::commands::apply_colorkey(&w);
         }
     }
 }

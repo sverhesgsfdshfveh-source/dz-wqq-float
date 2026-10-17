@@ -205,3 +205,33 @@ pub fn open_settings_window(app: &AppHandle) -> Result<(), String> {
 pub fn open_settings(app: AppHandle) -> Result<(), String> {
     open_settings_window(&app)
 }
+
+// ---- Windows 透明窗"镂空"（colorkey 抠图） ----
+// 原理与约束见 main.rs setup 注释。关键点：
+// - 每次穿透切换（set_ignore_cursor_events）会重写 GWL_EXSTYLE，分层属性（含 colorkey）
+//   被系统重置 → 必须在每次切换后重新 apply；wry/tao 的 resize 也会冲掉，故由
+//   光标 watcher 高频兜底 + 启动期多轮补设双保险。
+#[cfg(windows)]
+pub fn apply_colorkey(w: &tauri::WebviewWindow) {
+    use windows::Win32::Foundation::{COLORREF, HWND};
+    use windows::Win32::Graphics::Dwm::{DwmEnableBlurBehindWindow, DWM_BLURBEHIND};
+    use windows::Win32::Graphics::Gdi::HRGN;
+    use windows::Win32::UI::WindowsAndMessaging::{SetLayeredWindowAttributes, LWA_ALPHA, LWA_COLORKEY};
+    unsafe {
+        let _ = w.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
+        let bb = DWM_BLURBEHIND {
+            dwFlags: 1, // DWM_BB_ENABLE
+            fEnable: false.into(),
+            hRgnBlur: HRGN(std::ptr::null_mut()),
+            fTransitionOnMaximized: false.into(),
+        };
+        if let Ok(h) = w.hwnd() {
+            let _ = DwmEnableBlurBehindWindow(HWND(h.0), &bb);
+            // colorkey+alpha 一次并设（0x3）：单设 colorkey 会被 wry 的 LWA_ALPHA 覆盖
+            let _ = SetLayeredWindowAttributes(HWND(h.0), COLORREF(0x000000), 255, LWA_COLORKEY | LWA_ALPHA);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn apply_colorkey(_w: &tauri::WebviewWindow) {}

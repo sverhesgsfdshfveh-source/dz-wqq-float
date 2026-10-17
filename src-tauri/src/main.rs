@@ -47,39 +47,11 @@ fn main() {
                 //   3. SetLayeredWindowAttributes(colorkey=纯黑)：纯黑像素全透明
                 //      —— CSS 形状边缘的抗锯齿过渡像素不是纯黑，完整保留，边缘平滑无锯齿
                 // 注意：UI 内禁止出现纯黑像素（当前主题最深处 ~RGB(11,13,19)，安全）
+                // ⚠️ 穿透切换（set_ignore_cursor_events）会重写 GWL_EXSTYLE 导致分层属性
+                // 被重置——poller.rs 的光标 watcher 每次切换后都会调 apply_colorkey 补设。
                 let w_ck = w.clone();
                 std::thread::spawn(move || {
-                    let apply = |tag: &str| {
-                        #[cfg(windows)]
-                        unsafe {
-                            use windows::Win32::Foundation::{COLORREF, HWND};
-                            use windows::Win32::Graphics::Dwm::{DwmEnableBlurBehindWindow, DWM_BLURBEHIND};
-                            use windows::Win32::Graphics::Gdi::HRGN;
-                            use windows::Win32::UI::WindowsAndMessaging::{
-                                SetLayeredWindowAttributes, LWA_ALPHA, LWA_COLORKEY,
-                            };
-                            if let Ok(h) = w_ck.hwnd() {
-                                let _ = w_ck.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
-                                let bb = DWM_BLURBEHIND {
-                                    dwFlags: 1, // DWM_BB_ENABLE
-                                    fEnable: false.into(),
-                                    hRgnBlur: HRGN(std::ptr::null_mut()),
-                                    fTransitionOnMaximized: false.into(),
-                                };
-                                let _ = DwmEnableBlurBehindWindow(HWND(h.0), &bb);
-                                // 一次调用同时设 colorkey+alpha：wry 会用 LWA_ALPHA(0x2) 覆盖
-                                // 分层属性，单设 LWA_COLORKEY(0x1) 会被冲掉；0x3 双位并设最稳
-                                let _ = SetLayeredWindowAttributes(
-                                    HWND(h.0),
-                                    COLORREF(0x000000),
-                                    255,
-                                    LWA_COLORKEY | LWA_ALPHA,
-                                );
-                                eprintln!("[wqq] colorkey transparency applied: {tag}");
-                            }
-                        }
-                    };
-                    // wry/tao 在启动与每次 resize 后可能重设分层属性，多轮补设
+                    // wry/tao 在启动与 resize 后会重设分层属性，启动期多轮补设
                     for (delay, tag) in [
                         (600, "t+600ms"),
                         (800, "t+1400ms"),
@@ -88,7 +60,8 @@ fn main() {
                         (1400, "t+5000ms"),
                     ] {
                         std::thread::sleep(std::time::Duration::from_millis(delay));
-                        apply(tag);
+                        crate::commands::apply_colorkey(&w_ck);
+                        eprintln!("[wqq] colorkey applied: {tag}");
                     }
                 });
                 let mons = w.available_monitors().unwrap_or_default();
