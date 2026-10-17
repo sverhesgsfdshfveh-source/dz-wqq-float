@@ -170,6 +170,8 @@ pub async fn run_poller(
         match poll {
             Ok(res) => {
                 failures = 0;
+                // 首轮（水位尚为 0）的帖子是历史存量，前端不播提示音
+                let initial = watermark == 0;
                 let (new_wm, threads) = apply_result(watermark, &res);
                 if let Ok(mut s) = state.lock() {
                     s.watermark = new_wm;
@@ -180,7 +182,10 @@ pub async fn run_poller(
                     }
                 }
                 if !threads.is_empty() {
-                    let _ = app.emit("new-threads", &threads);
+                    let _ = app.emit(
+                        "new-threads",
+                        serde_json::json!({ "threads": threads, "initial": initial }),
+                    );
                 }
                 let via = if used_rss { "rss" } else { "wqq" };
                 let _ = app.emit("conn-state", serde_json::json!({ "ok": true, "via": via }));

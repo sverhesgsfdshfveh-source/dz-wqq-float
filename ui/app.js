@@ -12,6 +12,15 @@ let forumBase = 'https://bbs.weiququ.cn';
 let current = null;          // 当前展示的 Thread
 let connOk = true;
 
+// ---------- 新帖提示音（音效提取自 ZCode 的 task-notification-pop） ----------
+const notifyAudio = new Audio('assets/notify.mp3');
+function playNotify() {
+  try {
+    notifyAudio.currentTime = 0; // 连续新帖时从头播
+    notifyAudio.play().catch(() => { /* 自动播放被拒时静默 */ });
+  } catch (_) { /* 音频不可用时静默 */ }
+}
+
 // ---------- 相对时间 ----------
 function relTime(ts) {
   const d = Math.max(0, Date.now() / 1000 - ts);
@@ -28,7 +37,8 @@ function refreshTime() {
 setInterval(refreshTime, 30000);
 
 // ---------- 渲染 ----------
-function render(t) {
+// opts.silent：初始化渲染（启动补拉 / 首轮存量帖）不播提示音
+function render(t, opts) {
   current = t;
   // 长条：新帖标题向下滚动切换（300ms 动画）
   titleEl.textContent = t.subject;
@@ -50,12 +60,15 @@ function render(t) {
   $('card-replies').textContent = t.replies;
   $('card-views').textContent = t.views;
   $('card-summary').textContent = t.summary || '（该帖无摘要内容）';
+  if (!(opts && opts.silent)) playNotify();
 }
 
 // ---------- 事件 ----------
 listen('new-threads', (e) => {
-  const threads = e.payload || [];
-  if (threads.length > 0) render(threads[0]);
+  const p = e.payload || {};
+  const threads = p.threads || [];
+  // initial=true 是启动首轮的存量帖（20 条历史），不响提示音
+  if (threads.length > 0) render(threads[0], { silent: !!p.initial });
 });
 
 listen('conn-state', (e) => {
@@ -151,9 +164,9 @@ barwrap.addEventListener('mouseleave', reportRects);
     forumBase = cfg.forum_base || forumBase;
   } catch (_) { /* 默认值兜底 */ }
   reportRects();
-  // 首轮 poll 常早于本页就绪（emit 事件丢失），主动补拉一次
+  // 首轮 poll 常早于本页就绪（emit 事件丢失），主动补拉一次（初始化渲染，不响提示音）
   try {
     const t = await invoke('get_latest_thread');
-    if (t) render(t);
+    if (t) render(t, { silent: true });
   } catch (_) { /* 首轮无数据则等事件 */ }
 })();
