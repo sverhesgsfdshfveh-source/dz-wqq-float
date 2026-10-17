@@ -112,6 +112,18 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 布局联动 | **卡片 top 66→88px**（球底 +8）、`CARD_TOP` 同步；悬停桥接带 14→24px（`#barwrap::after` 与 `collectRects` 扩展同时改）；窗口初始高 84→100 |
 | 注意 | 实测 `cargo build` 的 debug exe **同样嵌入 ui/ 资源**，改前端后必须重新编译再重启（原"改前端不用编译"记录作废） |
 
+## 透明窗"镂空"（2026-10-17 第六轮：colorkey 抠图，消除矩形窗体轮廓）
+
+| 项 | 实现 |
+|---|---|
+| 问题 | Win10 上 tao 为透明窗口启用 DWM blur-behind，透明区域带一层灰雾——白色桌面下整个矩形窗体轮廓清晰可见，"镂空"完全失效 |
+| 走过的弯路 | ①`SetWindowRgn` 把窗口裁成球+胶囊形状：矩形轮廓消失但 **region 是纯几何位掩码，边缘无抗锯齿（微软文档明确）**，严重锯齿，弃用；②`SetWindowCompositionAttribute` accent blur/acrylic：色雾更重，弃用 |
+| 最终方案 | **colorkey 抠图**（`main.rs` setup 后台线程，t+600ms 起五轮补设）：①`set_background_color(0,0,0,0)` WebView2 全透明（alpha 被合成丢弃→透明区呈纯黑）；②`DwmEnableBlurBehindWindow(fEnable=FALSE)` 关灰雾；③`SetLayeredWindowAttributes(colorkey=纯黑, flags=LWA_COLORKEY|LWA_ALPHA)` 纯黑像素全透明。CSS 形状边缘的抗锯齿过渡像素非纯黑 → 完整保留，**边缘平滑无锯齿** |
+| 为什么五轮补设 | wry/tao 会在启动后与 resize 时用 `LWA_ALPHA` 覆盖分层属性（单设 colorkey 会被冲掉）；必须一次调用并设 `LWA_COLORKEY|LWA_ALPHA`（0x3），并在多个时间点重设 |
+| CSS 连带约束 | **禁止一切黑色/深色外投影与外辉光**（`box-shadow` 的 offset/blur 外层、`--ball-drop` 等）——半透明黑在表面上是深色像素，colorkey 抠不掉，会显形为灰雾。立体感全部改用 `inset` 阴影 + 1px 边框实现；`#ball.warn` 警示圈也改 inset |
+| 采坑记录 | 排查时把**桌面壁纸深色区/图标文字**误判为灰雾（镂空成功后桌面真实透出）；判定方法：把窗口移到纯白区域对比窗口内外颜色 |
+| 备选正解（未走） | per-pixel alpha：WebView2 `ICoreWebView2CompositionController`（visual hosting）+ DirectComposition 可真正逐像素透明，但 wry 的 HWND hosting 不走这条路，需自行集成 WebView2 COM，改造代价大；wqq-float 规模下 colorkey 是最优工程折中 |
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS
@@ -120,3 +132,4 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 - 数据接口：`wqq_notifier.php`（已在 DiscuzX5 README 二开保护清单登记）
 - 悬浮窗：球 80px（压住胶囊左端 40px，胶囊左半圆完全藏于球后）+ 条高 52px/max 640px，窗口高 100（卡片展开时动态加高）；
   拖到屏幕右缘 40px 内自动吸附（右边距 8px）
+- **colorkey 约束：UI 内禁止出现纯黑 RGB(0,0,0) 像素**（当前主题最深 ~RGB(11,13,19)，安全）；改主题色时注意别引入 #000

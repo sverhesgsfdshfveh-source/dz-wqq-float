@@ -22,6 +22,15 @@ anyhow = "1"
 # 与 additionalBrowserArgs 影响设置窗渲染的副作用）
 rodio = { version = "0.20", default-features = false, features = ["minimp3"] }
 
+# 悬浮窗镂空（colorkey 抠图）：关 DWM blur + SetLayeredWindowAttributes
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Gdi",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
 [profile.release]
 strip = true
 lto = true

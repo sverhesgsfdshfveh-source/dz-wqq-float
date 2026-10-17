@@ -5372,6 +5372,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "tokio",
+ "windows 0.62.2",
 ]
 
 [[package]]

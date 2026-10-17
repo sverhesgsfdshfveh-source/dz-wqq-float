@@ -37,6 +37,60 @@ fn main() {
             // 悬浮窗位置：存档有效则恢复（clamp 回可视区），否则主屏右缘垂直居中；
             // 初始设为鼠标穿透（方案一'），等前端上报可见矩形后由光标轮询接管
             if let Some(w) = app.get_webview_window("float") {
+                // ===== Windows 10 透明窗"镂空"方案（colorkey 抠图） =====
+                // Win10 上 tao 为透明窗口启用 DWM blur-behind，透明区域会带一层灰雾，
+                // 白色桌面下整个矩形窗体轮廓可见；且 wry 不走 per-pixel alpha（DirectComposition）。
+                // 三步走（需在 WebView2 就绪后执行）：
+                //   1. set_background_color(0,0,0,0)：WebView2 背景全透明，
+                //      其表面 alpha 被合成丢弃后透明区呈纯黑
+                //   2. DwmEnableBlurBehindWindow(fEnable=FALSE)：关掉 DWM 灰雾
+                //   3. SetLayeredWindowAttributes(colorkey=纯黑)：纯黑像素全透明
+                //      —— CSS 形状边缘的抗锯齿过渡像素不是纯黑，完整保留，边缘平滑无锯齿
+                // 注意：UI 内禁止出现纯黑像素（当前主题最深处 ~RGB(11,13,19)，安全）
+                let w_ck = w.clone();
+                std::thread::spawn(move || {
+                    let apply = |tag: &str| {
+                        #[cfg(windows)]
+                        unsafe {
+                            use windows::Win32::Foundation::{COLORREF, HWND};
+                            use windows::Win32::Graphics::Dwm::{DwmEnableBlurBehindWindow, DWM_BLURBEHIND};
+                            use windows::Win32::Graphics::Gdi::HRGN;
+                            use windows::Win32::UI::WindowsAndMessaging::{
+                                SetLayeredWindowAttributes, LWA_ALPHA, LWA_COLORKEY,
+                            };
+                            if let Ok(h) = w_ck.hwnd() {
+                                let _ = w_ck.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
+                                let bb = DWM_BLURBEHIND {
+                                    dwFlags: 1, // DWM_BB_ENABLE
+                                    fEnable: false.into(),
+                                    hRgnBlur: HRGN(std::ptr::null_mut()),
+                                    fTransitionOnMaximized: false.into(),
+                                };
+                                let _ = DwmEnableBlurBehindWindow(HWND(h.0), &bb);
+                                // 一次调用同时设 colorkey+alpha：wry 会用 LWA_ALPHA(0x2) 覆盖
+                                // 分层属性，单设 LWA_COLORKEY(0x1) 会被冲掉；0x3 双位并设最稳
+                                let _ = SetLayeredWindowAttributes(
+                                    HWND(h.0),
+                                    COLORREF(0x000000),
+                                    255,
+                                    LWA_COLORKEY | LWA_ALPHA,
+                                );
+                                eprintln!("[wqq] colorkey transparency applied: {tag}");
+                            }
+                        }
+                    };
+                    // wry/tao 在启动与每次 resize 后可能重设分层属性，多轮补设
+                    for (delay, tag) in [
+                        (600, "t+600ms"),
+                        (800, "t+1400ms"),
+                        (1000, "t+2400ms"),
+                        (1200, "t+3600ms"),
+                        (1400, "t+5000ms"),
+                    ] {
+                        std::thread::sleep(std::time::Duration::from_millis(delay));
+                        apply(tag);
+                    }
+                });
                 let mons = w.available_monitors().unwrap_or_default();
                 let ws = w.outer_size().unwrap_or(tauri::PhysicalSize::new(760, 84));
                 let restored = {
