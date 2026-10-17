@@ -62,6 +62,16 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
   之后水位已推进只发 `changed:0`，条永远空白。已加 `state.latest` + `get_latest_thread`
   命令，前端加载完成后主动补拉。
 
+## 新帖提示音（2026-10-17 追加）
+
+- 音效文件 `ui/assets/notify.mp3`（0.3 秒），提取自 ZCode 的 `task-notification-pop`
+- 行为：**运行期间**有新帖到达 → 播放；启动首帧、补拉、首轮 20 条存量帖**不播**
+  （poller 在 `new-threads` 事件里带 `initial` 标记，首轮水位为 0 时置 true）
+- 依赖 `additionalBrowserArgs` 的 `--autoplay-policy=no-user-gesture-required`：
+  不加时 WebView2 会因无用户手势拒绝自动播放（该参数覆盖 Tauri 默认值，
+  已保留默认的 `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`）
+- 暂未做设置页开关（如需静音场景可后续加）
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS
