@@ -123,6 +123,16 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | CSS 约束 | 外投影/外辉光会被 region 裁掉 → 立体感全用 inset 阴影 + 1px 边框实现（`#ball.warn` 也是 inset） |
 | 排障备忘 | region 是归系统所有的句柄，`SetWindowRgn` 成功后不能再 DeleteObject；窗口 resize 后前端自动重报新形状 |
 
+## 流动光环 + 卡片改版（2026-10-17 第七轮）
+
+| 项 | 实现 |
+|---|---|
+| 流动光环 | `#glow-ring` 包裹球+胶囊**整体外轮廓**（圆角矩形环 45px 圆角），conic 青蓝紫粉多彩渐变 4s 旋转；环体用「整面 conic + ::after 内层 2.5px 盖 `--ring-cover` 色挖空」实现——**mask-composite: exclude 在 WebView2 部分区域不渲染（右侧缺口），弃用** |
+| 半透明像素丢失（关键坑） | region+透明 WebView2 下 **CSS 半透明背景像素整体丢失**（rgba(15,17,24,.95) 的卡片区域直接显示桌面）：alpha 通道在合成时被丢弃，只有不透明像素可见。条原本正常纯靠 backdrop-filter 产出的不透明层。修复：全部 UI 背景（条/卡片/菜单，含 hover 变量与浅色主题）改为**不透明预混合色**，并移除 backdrop-filter（不透明背景无磨砂意义） |
+| 卡片布局 | top 66（与胶囊零间距）、左右缩进 30px（不超胶囊两端圆弧）、底部圆角 16、去顶边框；`CARD_TOP=66`、`openCard` 简化 |
+| 详情卡 | 移除"浏览"显示（新帖浏览量小无意义），保留作者/版块/时间/回复 |
+| JS 坑 | `collectShapes` 引用了未定义的 `hud` 变量 → `reportRects` 整个抛异常 → `ui_rects` 停更 → 全窗穿透、交互全失效（症状与 colorkey 的 mousemove 冲突一模一样，极具迷惑性）；已把 `hud` 加入顶部 const 声明 |
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS

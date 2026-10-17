@@ -7,12 +7,12 @@ body {
 
 /* ===== 主题变量：默认纯黑（同对标图）；body.theme-system + 系统浅色时切换浅色 ===== */
 :root {
-  --bar-bg: linear-gradient(180deg, rgba(36, 40, 52, 0.86) 0%, rgba(12, 14, 20, 0.94) 100%);
-  --bar-bg-hover: linear-gradient(180deg, rgba(44, 49, 63, 0.9) 0%, rgba(16, 19, 27, 0.96) 100%);
+  --bar-bg: linear-gradient(180deg, #22262f 0%, #0d0f14 100%);
+  --bar-bg-hover: linear-gradient(180deg, #2b313d 0%, #10131b 100%);
   --bar-border: rgba(255, 255, 255, 0.08);
   --bar-border-hover: rgba(140, 180, 255, 0.28);
-  --card-bg: rgba(15, 17, 24, 0.95);
-  --menu-bg: rgba(26, 29, 38, 0.97);
+  --card-bg: #12141c;
+  --menu-bg: #1a1d26;
   --text: #f3f5fa;
   --text-dim: rgba(203, 212, 232, 0.52);
   --text-card: #d4d9e6;
@@ -25,6 +25,7 @@ body {
   --prog-glow: rgba(180, 205, 255, 0.25);
   --link: #6ea8ff;
   --sel: rgba(110, 168, 255, 0.35);
+  --ring-cover: #0a0d15;
   /* 球体（随主题，避免浅色主题下深球突兀） */
   --ball-g1: #33415f;
   --ball-g2: #131a2a;
@@ -41,12 +42,12 @@ body {
 /* 跟随系统：系统为浅色时用浅色配色（含球体，保持整体和谐） */
 @media (prefers-color-scheme: light) {
   body.theme-system {
-    --bar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(243, 246, 252, 0.97) 100%);
-    --bar-bg-hover: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 249, 253, 0.99) 100%);
+    --bar-bg: linear-gradient(180deg, #ffffff 0%, #f3f6fc 100%);
+    --bar-bg-hover: linear-gradient(180deg, #ffffff 0%, #f7f9fd 100%);
     --bar-border: rgba(20, 32, 54, 0.14);
     --bar-border-hover: rgba(70, 120, 210, 0.32);
-    --card-bg: rgba(250, 251, 254, 0.97);
-    --menu-bg: rgba(252, 253, 255, 0.98);
+    --card-bg: #fafbfe;
+    --menu-bg: #fcfdff;
     --text: #1c2433;
     --text-dim: rgba(40, 52, 74, 0.52);
     --text-card: #3f4a5e;
@@ -58,6 +59,7 @@ body {
     --prog-c: rgba(70, 110, 190, 0.04);
     --prog-glow: rgba(70, 110, 190, 0.1);
     --link: #2f6fd0;
+    --ring-cover: #f2f5fa;
     --ball-g1: #ffffff;
     --ball-g2: #f0f4fa;
     --ball-g3: #d6dfec;
@@ -76,8 +78,38 @@ body {
 /* 悬浮组合：胶囊左端整体藏进球后（条左移 40px = 球半径），连接处看不到任何转角圆弧。
    胶囊左半圆半径 26px，最远点距球心 √(26²+26²)≈36.8px < 球半径 40px → 完全覆盖。 */
 #hud {
-  position: absolute; left: 0; top: 0;
+  position: absolute; left: 6px; top: 6px;
   display: flex; align-items: center; gap: 0;
+}
+
+/* 流动光环：包裹球+胶囊整体外轮廓（圆角矩形环，非只在球上转）。
+   conic 多彩渐变旋转；环体用「整面 conic + 内层伪元素盖底色挖空」实现
+   （mask-composite: exclude 在 WebView2 上部分区域不渲染导致缺口，弃用）。
+   环宽 2.5px，内外缘由 border-radius 自然抗锯齿，顺带盖住 region 锯齿 */
+#glow-ring {
+  position: absolute; inset: -5px; z-index: 0;
+  border-radius: 45px;
+  background: conic-gradient(from 0deg,
+    rgba(0, 242, 254, 0.95) 0%,
+    rgba(79, 172, 254, 0.8) 12%,
+    rgba(120, 190, 255, 0.35) 26%,
+    rgba(130, 90, 255, 0.8) 40%,
+    rgba(60, 130, 255, 0.4) 54%,
+    rgba(240, 147, 251, 0.85) 68%,
+    rgba(120, 190, 255, 0.4) 80%,
+    rgba(0, 242, 254, 0.95) 100%);
+  animation: ring-rotate 4s linear infinite;
+  pointer-events: none;
+}
+/* 内层挖空：盖住 conic 中部，只留 2.5px 环；底色用 --ring-cover（跟随主题，
+   深色主题近球底色、浅色主题近桌面白，使环内区域看起来是"穿透"的） */
+#glow-ring::after {
+  content: ''; position: absolute; inset: 2.5px; border-radius: 42.5px;
+  background: var(--ring-cover);
+}
+@keyframes ring-rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #glow-ring { animation: none; }
 }
 
 /* 悬浮球 80px：深色径向渐变 + 蓝色辉光 + 顶部高光，中心嵌论坛 logo */
@@ -100,15 +132,16 @@ body {
   --ball-halo1: rgba(95, 160, 255, 0.66);
   --ball-halo2: rgba(60, 120, 255, 0.32);
 }
-/* 外圈渐变光环：左上亮、右下暗，模拟设计稿的蓝色边缘光 */
+/* 球缘静态柔光：紧贴球身一圈（不旋转，整体旋转光环由 #glow-ring 负责）。
+   全程非零 alpha 覆盖 region 外扩环带，避免 WebView 透明区显黑 */
 #ball::before {
   content: ''; position: absolute; inset: -2px; border-radius: 50%;
   background: conic-gradient(from 215deg,
-    rgba(165, 205, 255, 0.9) 0deg,
-    rgba(90, 150, 255, 0.34) 80deg,
-    rgba(20, 30, 60, 0) 170deg,
-    rgba(50, 100, 220, 0.3) 250deg,
-    rgba(150, 195, 255, 0.7) 360deg);
+    rgba(165, 205, 255, 0.85) 0deg,
+    rgba(90, 150, 255, 0.42) 80deg,
+    rgba(70, 115, 210, 0.16) 170deg,
+    rgba(60, 110, 215, 0.2) 250deg,
+    rgba(150, 195, 255, 0.65) 360deg);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
   pointer-events: none;
@@ -123,16 +156,14 @@ body {
 /* 条容器：宽度随标题 fit-content；进度线与卡片绝对定位，不撑高布局。
    z-index 低于球，球压住条左端形成无缝连接 */
 #barwrap { position: relative; z-index: 1; width: fit-content; max-width: 640px; min-width: 0; }
-/* 悬停桥接：填充条与卡片之间的间隙（条底 66 → 卡片顶 88），鼠标经过时 hover 不中断 */
-#barwrap::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 24px; }
+/* 悬停桥接：填充条与卡片之间的悬停区（条底 66 即卡片顶，桥接覆盖卡片顶缘） */
+#barwrap::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 4px; }
 
 /* 通知条：深色磨砂胶囊（对标设计稿），左端被球覆盖 12px */
 #bar {
   position: relative;
   min-height: 52px; height: 52px;
   background: var(--bar-bg);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  backdrop-filter: blur(20px) saturate(1.4);
   border: 1px solid var(--bar-border);
   border-radius: 26px; padding: 0 20px 0 74px;
   display: flex; align-items: center; gap: 12px;
@@ -192,13 +223,13 @@ body {
 #progress.sweep::after { animation: sweep 900ms cubic-bezier(0.3, 0, 0.3, 1); }
 @keyframes sweep { to { transform: translateX(100%); } }
 
-/* 展开卡：相对窗口定位（右缘对齐 + 距顶 88px = 球底 80 + 间隙 8），
-   不再跟随条宽变化；显示由 JS 加 .show 控制（卡片已移出 barwrap，hover 走 JS） */
+/* 展开卡：相对窗口定位，与胶囊零间距（top 66 = 条底）；左右各缩进 30px——
+   不超过胶囊两端圆弧转弯处（端部圆角 26px），视觉上与胶囊主体对齐；
+   显示由 JS 加 .show 控制（卡片已移出 barwrap，hover 走 JS） */
 #card {
-  position: absolute; top: 88px; right: 10px;
-  min-width: 360px; max-width: calc(100vw - 20px);
-  background: var(--card-bg); backdrop-filter: blur(22px) saturate(1.3);
-  border-radius: 16px; border: 1px solid var(--line);
+  position: absolute; top: 66px; left: 30px; right: 30px;
+  background: linear-gradient(180deg, #191c26 0%, #12141c 100%);
+  border-radius: 0 0 16px 16px; border: 1px solid var(--line); border-top: none;
   padding: 0 18px;
   max-height: 0; opacity: 0; overflow: hidden;
   color: var(--text-card); cursor: default;
@@ -220,7 +251,7 @@ body {
 /* 自绘菜单（球功能菜单 + 卡片内容菜单） */
 #menu, #cmenu {
   position: absolute; z-index: 10;
-  background: var(--menu-bg); backdrop-filter: blur(18px) saturate(1.3);
+  background: var(--menu-bg);
   border: 1px solid var(--line); border-radius: 12px;
   padding: 5px; min-width: 120px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);

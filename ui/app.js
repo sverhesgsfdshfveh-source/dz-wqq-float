@@ -6,6 +6,7 @@ const { listen } = window.__TAURI__.event;
 
 const $ = (id) => document.getElementById(id);
 const ball = $('ball'), bar = $('bar'), barwrap = $('barwrap'), card = $('card');
+const hud = $('hud');
 const titleEl = $('title'), timeEl = $('time'), menu = $('menu'), cmenu = $('cmenu');
 const progress = $('progress');
 
@@ -47,7 +48,6 @@ function render(t) {
   $('card-author').textContent = t.author || '匿名';
   $('card-forum').textContent = t.forumname || '';
   $('card-replies').textContent = t.replies;
-  $('card-views').textContent = t.views;
   $('card-summary').textContent = t.summary || '（该帖无摘要内容）';
   // 标题宽度变化 → 重新贴合窗口尺寸（卡片展开中不动，收起后由 mouseleave 缩回）
   if (!barwrap.matches(':hover')) setTimeout(() => fitWindow(), 80);
@@ -211,26 +211,25 @@ function collectRects() {
 // ---------- 窗口形状上报（Windows region 镂空） ----------
 // 用 SetWindowRgn 把窗口裁成「球圆 + 胶囊圆角 + 进度线 + 卡片/菜单」并集，
 // 消除矩形窗体轮廓（透明区域直接透出桌面）。region 是 1bit 裁剪、边缘有锯齿，
-// 因此每个形状**各方向外扩 1 物理像素**：锯齿像素落在 CSS 形状自身边界之内被覆盖，
-// 外露边缘走 CSS 抗锯齿（region 略大于 UI 才能盖住锯齿，故外扩而非内缩）。
+// 因此每个形状**各方向外扩 2 物理像素**：锯齿带落在 CSS 形状内部
+// （UI 元素的可视边缘由 CSS 自身抗锯齿绘制，region 边缘藏在元素内侧不外露）。
 function collectShapes() {
   const dpr = window.devicePixelRatio || 1;
   const shapes = [];
-  const push = (kind, r, radius) => {
+  const push = (kind, r, radius, expand) => {
     if (r.width <= 0 || r.height <= 0) return;
+    const e = expand || 2; // 默认外扩 2px 盖住 region 锯齿
     const item = [
       kind,
-      r.left * dpr - 1,
-      r.top * dpr - 1,
-      r.width * dpr + 2,
-      r.height * dpr + 2,
+      r.left * dpr - e,
+      r.top * dpr - e,
+      r.width * dpr + e * 2,
+      r.height * dpr + e * 2,
     ];
     if (radius !== undefined) item.push(radius * dpr);
     shapes.push(item);
   };
-  push(0, ball.getBoundingClientRect());      // 球：椭圆
-  push(1, bar.getBoundingClientRect(), 26);   // 胶囊：圆角矩形
-  push(2, progress.getBoundingClientRect());  // 进度线：直角矩形
+  push(1, hud.getBoundingClientRect(), 40, 5); // 整体外轮廓（球+胶囊+5px 流动光环）：圆角矩形，圆角取球半径
   // 卡片：展开时纳入 region；收起动画期间高度极小自动跳过
   const cr = card.getBoundingClientRect();
   if (cr.height > 4) push(1, cr, 16);
@@ -255,7 +254,7 @@ window.addEventListener('resize', reportRects);
 // ---------- 窗口自适应尺寸（窗口贴合"球+条"组合；卡片展开时加高，收起后缩回） ----------
 // 窗口高度只有球高量级 → 可拖到屏幕最顶/最底；浏览器大窗口的边界限制与 Snap 问题随之消失
 const RESIZE_PAD = 20;   // 右/下余量（阴影/光晕）
-const CARD_TOP = 88;     // 卡片顶在窗口内的 y（球高 80 + 间隙 8）
+const CARD_TOP = 66;     // 卡片顶在窗口内的 y（= 条底，零间距）
 let shrinkTimer = null;
 
 function baseSize() {
@@ -272,16 +271,15 @@ function fitWindow(extraH) {
   invoke('resize_float', { width: b.w, height: h }).catch(() => {});
 }
 
-// 卡片展开：先撑开窗口再显示卡片（卡片已移出 barwrap，hover 用 JS 管理 + 120ms 宽限跨间隙）
+// 卡片展开：先撑开窗口再显示卡片（hover 用 JS 管理，卡片顶贴条底无间隙）
 let closeTimer = null;
 function openCard() {
   clearTimeout(shrinkTimer);
   clearTimeout(closeTimer);
   const cardNeed = (card.scrollHeight || 0) + 28; // scrollHeight 不含 padding，补上下 14*2
   const need = CARD_TOP + Math.min(cardNeed, 300) + RESIZE_PAD;
-  const b = baseSize();
   fitWindow(need);
-  const avail = Math.max(120, Math.min(300, Math.max(need, b.h) - CARD_TOP - 8));
+  const avail = Math.max(120, Math.min(300, need - CARD_TOP - 8));
   card.style.setProperty('--card-max', avail + 'px');
   card.classList.add('show');
   reportRects();
@@ -296,7 +294,7 @@ function closeCard() {
 barwrap.addEventListener('mouseenter', openCard);
 barwrap.addEventListener('mouseleave', () => {
   clearTimeout(closeTimer);
-  closeTimer = setTimeout(closeCard, 120); // 宽限：允许鼠标穿过条与卡片的间隙
+  closeTimer = setTimeout(closeCard, 120); // 宽限：允许鼠标穿过条与卡片的接缝
 });
 card.addEventListener('mouseenter', () => {
   clearTimeout(closeTimer);

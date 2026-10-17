@@ -8,6 +8,8 @@
 <body>
   <div id="hud">
     <!-- 拖动走自定义阈值逻辑（app.js），不用 data-tauri-drag-region：后者在 mousedown 立即 start_dragging，会吞掉单击 -->
+    <!-- 流动光环：包裹球+胶囊整体外轮廓（圆角矩形环），conic 渐变旋转 -->
+    <div id="glow-ring" aria-hidden="true"></div>
     <div id="ball" title="拖动移动 · 单击打开论坛 · 右键菜单">
       <img src="assets/logo.png" alt="" draggable="false">
     </div>
@@ -20,12 +22,12 @@
     </div>
   </div>
 
-  <!-- 展开卡：相对窗口定位（右缘对齐），避免跟随条宽变化与否溢出 -->
+  <!-- 展开卡：相对窗口定位（零间距贴胶囊、宽度同窗），避免跟随条宽变化与否溢出 -->
   <div id="card">
     <h2 id="card-title"></h2>
     <div class="meta">
       <span id="card-author"></span> · <span id="card-forum"></span> ·
-      <span id="card-time"></span> · 回复 <span id="card-replies"></span> · 浏览 <span id="card-views"></span>
+      <span id="card-time"></span> · 回复 <span id="card-replies"></span>
     </div>
     <div class="summary" id="card-summary"></div>
     <a id="card-open" class="open-link" href="#">打开原帖 ↗</a>
