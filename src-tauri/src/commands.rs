@@ -4,7 +4,7 @@ use crate::config::{self, clamp_interval, Config, SourceKind};
 use crate::state::SharedState;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 /// 配置文件路径（setup 时 manage 注入）
@@ -84,6 +84,34 @@ pub fn report_ui_rects(state: tauri::State<'_, Arc<Mutex<SharedState>>>, rects: 
     if let Ok(mut s) = state.lock() {
         s.ui_rects = rects;
     }
+}
+
+/// 前端加载完成后主动拉取最近新帖：首轮 poll 常早于页面就绪，emit 的事件会丢，
+/// 之后水位已推进只发 changed:0，条会永远空白（启动竞态）
+#[tauri::command]
+pub fn get_latest_thread(
+    state: tauri::State<'_, Arc<Mutex<SharedState>>>,
+) -> Option<crate::source::Thread> {
+    state.lock().ok().and_then(|s| s.latest.clone())
+}
+
+/// 前端报告鼠标按下状态（mousedown→true / mouseup→false）：拖动期间 watcher 冻结穿透切换，
+/// 避免 set_ignore_cursor_events 打断系统拖动循环
+#[tauri::command]
+pub fn set_dragging(state: tauri::State<'_, Arc<Mutex<SharedState>>>, active: bool) {
+    if let Ok(mut s) = state.lock() {
+        s.drag_started = if active { Some(std::time::Instant::now()) } else { None };
+    }
+}
+
+/// 进入系统拖动循环（替代 data-tauri-drag-region：注入脚本在 mousedown 立即触发且依赖 ACL 权限，
+/// 无法与单击区分；这里由前端位移阈值触发）
+#[tauri::command]
+pub fn start_drag(app: AppHandle) -> Result<(), String> {
+    let w = app
+        .get_webview_window("float")
+        .ok_or_else(|| "float window not found".to_string())?;
+    w.start_dragging().map_err(|e| e.to_string())
 }
 
 /// 打开/显示设置窗（托盘菜单与球右键菜单共用）

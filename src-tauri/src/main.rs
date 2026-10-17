@@ -34,10 +34,11 @@ fn main() {
             app.manage(st.clone());
             app.manage(commands::CfgPath(config_path.clone()));
 
-            // 悬浮窗位置：存档有效则恢复，否则主屏右缘垂直居中；初始设为鼠标穿透（方案一'），
-            // 等前端上报可见矩形后由光标轮询接管
+            // 悬浮窗位置：存档有效则恢复（clamp 回可视区），否则主屏右缘垂直居中；
+            // 初始设为鼠标穿透（方案一'），等前端上报可见矩形后由光标轮询接管
             if let Some(w) = app.get_webview_window("float") {
                 let mons = w.available_monitors().unwrap_or_default();
+                let ws = w.outer_size().unwrap_or(tauri::PhysicalSize::new(760, 700));
                 let restored = {
                     let s = st.lock().expect("state lock");
                     s.cfg.window_pos.filter(|p| {
@@ -53,13 +54,35 @@ fn main() {
                 };
                 match restored {
                     Some((x, y)) => {
-                        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+                        // clamp：窗口尺寸/分辨率变化后，存档位置可能把右缘或底部顶出屏幕
+                        let (nx, ny) = match mons.iter().find(|m| {
+                            let mp = m.position();
+                            let ms = m.size();
+                            mp.x <= x
+                                && x < mp.x + ms.width as i32
+                                && mp.y <= y
+                                && y < mp.y + ms.height as i32
+                        }) {
+                            Some(m) => {
+                                let mp = m.position();
+                                let ms = m.size();
+                                let min_x = mp.x;
+                                let max_x = mp.x + ms.width as i32 - ws.width as i32;
+                                let min_y = mp.y;
+                                let max_y = mp.y + ms.height as i32 - ws.height as i32;
+                                (
+                                    x.clamp(min_x.min(max_x), min_x.max(max_x)),
+                                    y.clamp(min_y.min(max_y), min_y.max(max_y)),
+                                )
+                            }
+                            None => (x, y),
+                        };
+                        let _ = w.set_position(tauri::PhysicalPosition::new(nx, ny));
                     }
                     None => {
                         if let Ok(Some(prim)) = w.primary_monitor() {
                             let mp = prim.position();
                             let ms = prim.size();
-                            let ws = w.outer_size().unwrap_or(tauri::PhysicalSize::new(700, 520));
                             let x = mp.x + ms.width as i32 - ws.width as i32 - 8;
                             let y = mp.y + (ms.height as i32 - ws.height as i32) / 2;
                             let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
@@ -135,7 +158,8 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 拖动位置记忆：Moved 更新内存并标脏，poller 每轮落盘（drag region 拖动时前端收不到 mouseup）
+            // 拖动位置记忆：Moved 更新内存并标脏，poller 每轮落盘（drag region 拖动时前端收不到 mouseup）；
+            // last_moved 供 watcher 在移动停止后做右缘吸附判定
             if window.label() == "float" {
                 if let tauri::WindowEvent::Moved(pos) = event {
                     let app = window.app_handle();
@@ -143,6 +167,7 @@ fn main() {
                         if let Ok(mut s) = st.lock() {
                             s.cfg.window_pos = Some((pos.x, pos.y));
                             s.cfg_pos_dirty = true;
+                            s.last_moved = Some(std::time::Instant::now());
                         }
                     }
                 }
@@ -155,6 +180,9 @@ fn main() {
             commands::save_window_pos,
             commands::save_settings,
             commands::report_ui_rects,
+            commands::get_latest_thread,
+            commands::set_dragging,
+            commands::start_drag,
             commands::open_settings
         ])
         .run(tauri::generate_context!())

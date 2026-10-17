@@ -12,10 +12,11 @@
       {
         "label": "float",
         "url": "index.html",
-        "width": 700,
-        "height": 520,
+        "width": 760,
+        "height": 700,
         "transparent": true,
         "decorations": false,
+        "shadow": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "resizable": false

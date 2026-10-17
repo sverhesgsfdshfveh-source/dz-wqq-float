@@ -5,8 +5,8 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 const $ = (id) => document.getElementById(id);
-const ball = $('ball'), bar = $('bar'), col = $('col'), card = $('card');
-const titleEl = $('title'), timeEl = $('time'), menu = $('menu');
+const ball = $('ball'), bar = $('bar'), barwrap = $('barwrap'), card = $('card');
+const titleEl = $('title'), timeEl = $('time'), menu = $('menu'), progress = $('progress');
 
 let forumBase = 'https://bbs.weiququ.cn';
 let current = null;          // 当前展示的 Thread
@@ -36,6 +36,12 @@ function render(t) {
   tk.classList.remove('slide');
   void tk.offsetWidth; // 重启动画
   tk.classList.add('slide');
+  // 进度线扫光
+  progress.classList.remove('sweep');
+  void progress.offsetWidth;
+  progress.classList.add('sweep');
+  // 未读红点亮起（点击球/条后熄灭）
+  ball.classList.add('unread');
   refreshTime();
   // 展开卡（textContent，永不 innerHTML）
   $('card-title').textContent = t.subject;
@@ -59,10 +65,39 @@ listen('conn-state', (e) => {
 });
 
 // ---------- 点击 ----------
-ball.addEventListener('click', () => invoke('open_url', { url: forumBase }));
+ball.addEventListener('click', () => {
+  ball.classList.remove('unread');
+  invoke('open_url', { url: forumBase });
+});
 bar.addEventListener('click', () => {
+  ball.classList.remove('unread');
   if (current) invoke('open_url', { url: current.url });
 });
+
+// ---------- 拖动 ----------
+// 不用 data-tauri-drag-region：注入脚本会在 mousedown 立即 start_dragging（还需 ACL 权限），
+// 且系统拖动循环会被穿透切换打断。这里改为阈值拖动：位移超 4px 才进入系统拖动，
+// 按下期间通过 set_dragging 让后端冻结穿透判定，保证拖动不中断。
+let pending = null; // 按下起点（屏幕坐标）
+const DRAG_THRESHOLD = 4;
+
+ball.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  pending = { x: e.screenX, y: e.screenY };
+  invoke('set_dragging', { active: true }).catch(() => {});
+});
+window.addEventListener('mousemove', (e) => {
+  if (!pending) return;
+  if (Math.hypot(e.screenX - pending.x, e.screenY - pending.y) < DRAG_THRESHOLD) return;
+  pending = null;
+  invoke('start_drag').catch(() => {});
+});
+function endDrag() {
+  pending = null;
+  invoke('set_dragging', { active: false }).catch(() => {});
+}
+window.addEventListener('mouseup', endDrag);
+window.addEventListener('blur', endDrag);
 
 // 球右键自绘菜单
 ball.addEventListener('contextmenu', (e) => {
@@ -88,12 +123,16 @@ menu.addEventListener('click', (e) => {
 function collectRects() {
   const dpr = window.devicePixelRatio || 1;
   const rects = [];
-  for (const el of [ball, col]) {
-    const r = el.getBoundingClientRect();
+  const push = (r, extraBottom) => {
     if (r.width > 0 && r.height > 0) {
-      rects.push([r.left * dpr, r.top * dpr, r.width * dpr, r.height * dpr]);
+      rects.push([r.left * dpr, r.top * dpr, r.width * dpr, (r.height + (extraBottom || 0)) * dpr]);
     }
-  }
+  };
+  push(ball.getBoundingClientRect());
+  // 条容器底部外扩 14px：覆盖条与卡片之间的悬停桥接带
+  push(barwrap.getBoundingClientRect(), 14);
+  // 卡片展开时纳入判定，否则鼠标移到卡上会被判穿透
+  push(card.getBoundingClientRect());
   return rects;
 }
 function reportRects() {
@@ -101,6 +140,9 @@ function reportRects() {
 }
 setInterval(reportRects, 250);
 window.addEventListener('resize', reportRects);
+// hover 展开/收起瞬间立即上报：卡片 bbox 变化不等 250ms 周期
+barwrap.addEventListener('mouseenter', reportRects);
+barwrap.addEventListener('mouseleave', reportRects);
 
 // ---------- 初始化 ----------
 (async () => {
@@ -109,4 +151,9 @@ window.addEventListener('resize', reportRects);
     forumBase = cfg.forum_base || forumBase;
   } catch (_) { /* 默认值兜底 */ }
   reportRects();
+  // 首轮 poll 常早于本页就绪（emit 事件丢失），主动补拉一次
+  try {
+    const t = await invoke('get_latest_thread');
+    if (t) render(t);
+  } catch (_) { /* 首轮无数据则等事件 */ }
 })();

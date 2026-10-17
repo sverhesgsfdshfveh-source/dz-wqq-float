@@ -2,39 +2,67 @@
 html, body { background: transparent; height: 100%; overflow: hidden; }
 body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user-select: none; }
 
-/* 悬浮组合：右缘垂直居中，球 + (长条/展开卡 纵列) */
+/* 悬浮组合：右缘垂直居中。hud 高度只由球决定（54px），卡片绝对定位不参与布局 → 条与球位置恒定 */
 #hud {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-  display: flex; align-items: flex-start; gap: 10px;
+  display: flex; align-items: flex-start; gap: 8px;
 }
 
-/* 悬浮球：48px 圆，favicon，拖动柄；连不上时橙色警示圈 */
+/* 悬浮球 64px：深色径向渐变 + 蓝紫发光环（对标样板图），中心嵌论坛 logo */
 #ball {
-  width: 48px; height: 48px; border-radius: 50%;
-  background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(12px);
+  position: relative;
+  width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+  /* 球中心对齐条中心：条高 44，球 64 → 上移 (64-44)/2 = 10px */
+  margin-top: -10px;
+  background: radial-gradient(circle at 35% 28%, #3b4156 0%, #1c202c 48%, #0c0e14 100%);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 2px 12px rgba(0,0,0,.35);
-  cursor: pointer; flex-shrink: 0;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 0 2px rgba(132,162,255,.32),
+    0 0 14px rgba(92,132,255,.42),
+    0 0 36px rgba(80,110,255,.26),
+    0 6px 18px rgba(0,0,0,.5);
   transition: box-shadow 300ms;
 }
-#ball.warn { box-shadow: 0 0 0 3px rgba(255,139,61,.85), 0 2px 12px rgba(0,0,0,.35); }
-#ball img { width: 30px; height: 30px; pointer-events: none; }
+/* 外圈光环 */
+#ball::before {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  border: 1px solid rgba(150,180,255,.28); pointer-events: none;
+}
+/* 未读红点徽标：新帖到达亮起，点击球/条后熄灭 */
+#ball::after {
+  content: ''; position: absolute; right: 1px; bottom: 1px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff5a4d, #d81f10 70%);
+  box-shadow: 0 0 0 2.5px #12141c, 0 0 8px rgba(255,70,50,.6);
+  opacity: 0; transform: scale(.4); transition: opacity 200ms, transform 200ms;
+  pointer-events: none;
+}
+#ball.unread::after { opacity: 1; transform: scale(1); }
+/* 连不上：橙色警示圈 */
+#ball.warn { box-shadow: 0 0 0 3px rgba(255,139,61,.85), 0 0 14px rgba(255,139,61,.5), 0 6px 18px rgba(0,0,0,.5); }
+#ball img { width: 38px; height: 38px; pointer-events: none; filter: drop-shadow(0 0 5px rgba(255,70,60,.35)); }
 
-/* 长条：宽度随标题 fit-content，超 600px 省略号 */
-#col { display: flex; flex-direction: column; max-width: 640px; min-width: 0; }
+/* 条容器：宽度随标题 fit-content；进度线与卡片绝对定位，不撑高布局 */
+#barwrap { position: relative; width: fit-content; max-width: 640px; min-width: 0; }
+/* 悬停桥接：填充条与卡片间的 12px 间隙，鼠标经过时 hover 不中断 */
+#barwrap::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 14px; }
+
+/* 通知条：深色半透明胶囊（对标样板图） */
 #bar {
-  background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(12px);
-  border-radius: 12px; padding: 10px 16px;
+  min-height: 44px;
+  background: rgba(16, 17, 22, 0.86); backdrop-filter: blur(14px);
+  border-radius: 22px; padding: 0 20px;
   display: flex; align-items: center; gap: 12px;
   width: fit-content; max-width: 640px;
-  color: #eee; cursor: pointer;
-  box-shadow: 0 2px 12px rgba(0,0,0,.35);
+  color: #f2f3f5; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
 }
 #ticker { min-width: 0; overflow: hidden; }
 #title {
   display: block;
   max-width: 600px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-  font-size: 14px;
+  font-size: 15px;
 }
 /* 新帖到达：标题向下滚动切换（300ms） */
 #ticker.slide #title { animation: slide-down 300ms cubic-bezier(.4,0,.2,1); }
@@ -42,21 +70,38 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
   from { transform: translateY(-100%); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
-#time { font-size: 12px; color: #9a9a9a; flex-shrink: 0; }
+#time { font-size: 12px; color: #9a9daa; flex-shrink: 0; }
 
-/* 展开卡：hover #col 时自长条下方缓动展开（250ms） */
+/* 进度线：胶囊下方细线，左亮右渐隐（对标样板图）；新帖到达播放一次扫光 */
+#progress {
+  position: absolute; left: 6px; right: 6px; top: 52px; height: 2px;
+  border-radius: 1px; overflow: hidden;
+  background: linear-gradient(90deg, rgba(255,255,255,.85) 0%, rgba(255,255,255,.45) 45%, rgba(255,255,255,.1) 82%, rgba(255,255,255,0) 100%);
+}
+#progress::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(160,190,255,.95), transparent);
+  transform: translateX(-100%);
+}
+#progress.sweep::after { animation: sweep 900ms cubic-bezier(.3,0,.3,1); }
+@keyframes sweep { to { transform: translateX(100%); } }
+
+/* 展开卡：绝对定位于条下方（条与球位置不动），hover 条/卡时缓动展开 */
 #card {
-  background: rgba(20, 20, 20, 0.92); backdrop-filter: blur(14px);
-  border-radius: 12px; margin-top: 4px;
-  padding: 0 16px;
+  position: absolute; top: calc(100% + 12px); right: 0;
+  min-width: 360px; max-width: 640px;
+  background: rgba(16, 17, 22, 0.94); backdrop-filter: blur(16px);
+  border-radius: 14px; border: 1px solid rgba(255,255,255,.07);
+  padding: 0 18px;
   max-height: 0; opacity: 0; overflow: hidden;
-  color: #ddd; cursor: default;
+  color: #d8dae2; cursor: default;
+  box-shadow: 0 8px 26px rgba(0,0,0,.5);
   transition: max-height 250ms cubic-bezier(.4,0,.2,1), opacity 250ms cubic-bezier(.4,0,.2,1), padding 250ms cubic-bezier(.4,0,.2,1);
 }
-#col:hover #card { max-height: 400px; opacity: 1; padding: 12px 16px; }
+#barwrap:hover #card { max-height: 300px; opacity: 1; padding: 14px 18px; }
 #card h2 { font-size: 15px; color: #fff; margin-bottom: 6px; line-height: 1.4; }
-#card .meta { font-size: 12px; color: #9a9a9a; margin-bottom: 8px; }
-#card .summary { font-size: 13px; line-height: 1.7; max-height: 260px; overflow: hidden; white-space: pre-wrap; }
+#card .meta { font-size: 12px; color: #9a9daa; margin-bottom: 8px; }
+#card .summary { font-size: 13px; line-height: 1.7; max-height: 180px; overflow: hidden; white-space: pre-wrap; }
 
 /* 球右键自绘菜单 */
 #menu {

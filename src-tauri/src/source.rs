@@ -186,13 +186,13 @@ pub fn parse_rss(body: &str, base_url: &str) -> anyhow::Result<Vec<Thread>> {
     let mut author = String::new();
     let mut pubdate = String::new();
 
-    let mut flush = |title: &mut String,
-                     link: &mut String,
-                     desc: &mut String,
-                     category: &mut String,
-                     author: &mut String,
-                     pubdate: &mut String,
-                     items: &mut Vec<Thread>| {
+    let flush = |title: &mut String,
+                 link: &mut String,
+                 desc: &mut String,
+                 category: &mut String,
+                 author: &mut String,
+                 pubdate: &mut String,
+                 items: &mut Vec<Thread>| {
         // tid 从 link 的 thread-N 提取；无 tid 的残缺 item 跳过
         let tid = extract_tid(link);
         if tid > 0 {

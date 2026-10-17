@@ -5,6 +5,7 @@
   "permissions": [
     "core:default",
     "core:event:default",
+    "core:window:allow-start-dragging",
     "opener:default",
     "autostart:allow-enable",
     "autostart:allow-disable",

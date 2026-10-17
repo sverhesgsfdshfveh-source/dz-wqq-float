@@ -174,6 +174,10 @@ pub async fn run_poller(
                 if let Ok(mut s) = state.lock() {
                     s.watermark = new_wm;
                     s.via_rss_fallback = s.cfg.source == SourceKind::Wqq && used_rss;
+                    // 保留最新帖供前端主动补拉（首轮 poll 常早于页面就绪，emit 会丢）
+                    if let Some(t) = threads.first() {
+                        s.latest = Some(t.clone());
+                    }
                 }
                 if !threads.is_empty() {
                     let _ = app.emit("new-threads", &threads);
@@ -198,15 +202,40 @@ pub async fn run_poller(
 
 /// 方案一' 光标轮询（spike 裁定）：10ms 检查光标是否落在前端上报的可见矩形内，
 /// 动态切换 set_ignore_cursor_events——矩形内正常交互，矩形外整窗穿透。
+/// 拖动按下期（前端 set_dragging 报告）冻结判定：系统拖动循环中切穿透会中断拖动。
+/// 移动停止 400ms 后做一次右缘吸附（贴近屏幕右缘时贴边）。
 pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::SharedState>>) {
     let mut ignore = true; // main setup 已设初始穿透
     loop {
         tokio::time::sleep(Duration::from_millis(10)).await;
         let Some(w) = app.get_webview_window("float") else { continue };
-        let rects = state
+
+        let should_snap = {
+            let Ok(mut s) = state.lock() else { continue };
+            match s.last_moved {
+                Some(t) if t.elapsed() >= Duration::from_millis(400) => {
+                    s.last_moved = None; // 每次停止移动只判定一次
+                    true
+                }
+                _ => false,
+            }
+        };
+        if should_snap {
+            snap_to_right(&w);
+        }
+
+        let (rects, dragging) = state
             .lock()
-            .map(|s| s.ui_rects.clone())
+            .map(|s| (s.ui_rects.clone(), s.dragging()))
             .unwrap_or_default();
+        if dragging {
+            // 拖动中：强制保持可交互（拖到球边缘时矩形判定会抖出界）
+            if ignore {
+                ignore = false;
+                let _ = w.set_ignore_cursor_events(false);
+            }
+            continue;
+        }
         if rects.is_empty() {
             // 前端尚未上报：保持穿透
             if !ignore {
@@ -226,6 +255,24 @@ pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::S
         if inside == ignore {
             ignore = !inside;
             let _ = w.set_ignore_cursor_events(ignore);
+        }
+    }
+}
+
+/// 右缘吸附：窗口右缘距所在显示器右缘 <40px 时贴边（右边距 8px，与默认位置一致），
+/// 让"拖回右侧"自然归位，避免条悬浮在屏幕中间。
+fn snap_to_right(w: &tauri::WebviewWindow) {
+    let (Ok(pos), Ok(Some(mon))) = (w.outer_position(), w.current_monitor()) else {
+        return;
+    };
+    let Ok(ws) = w.outer_size() else { return };
+    let mp = mon.position();
+    let ms = mon.size();
+    let gap = (mp.x + ms.width as i32) - (pos.x + ws.width as i32);
+    if (0..40).contains(&gap) {
+        let nx = mp.x + ms.width as i32 - ws.width as i32 - 8;
+        if nx != pos.x {
+            let _ = w.set_position(tauri::PhysicalPosition::new(nx, pos.y));
         }
     }
 }
