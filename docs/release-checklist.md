@@ -81,6 +81,16 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 设置窗打开全白 | **三个递进根因**：①float 窗口的 `additionalBrowserArgs` 影响后续创建的 WebView2 窗口；②**运行中首次创建**设置窗本身白屏（启动时创建正常）；③点 X 时 Tauri 默认**销毁**窗口，第二次打开又变成"运行中重新创建"→ 白屏且窗口卡死（X 无响应） | ①移除该参数（提示音改 Rust 播放）；②setup **预创建**设置窗（`visible:false` + `skip_taskbar`）；③拦截 settings 的 `CloseRequested`：`prevent_close` + `hide`（窗口保活），打开时 `show` + `eval("location.reload()")` 解决隐藏后不重绘 |
 | 球菜单"退出"没反应（托盘退出正常） | 球菜单走 WebView2 IPC 回调，在回调线程内直接 `ExitProcess` 会挂起；托盘菜单回调无此问题 | `quit_now` 改独立线程延迟 80ms 退出（先落盘配置） |
 
+## 交互与外观（2026-10-17 第三轮追加）
+
+| 项 | 实现 |
+|---|---|
+| 主题设置 | 设置页「纯黑（默认）/ 跟随系统」；`config.theme`（serde default 兼容旧配置）；CSS 变量化 + `prefers-color-scheme: light`，球体保持深色；保存后 `settings-changed` 事件让悬浮窗即时刷新 |
+| 文字可选中复制 | 卡片 `user-select: text`（摘要可框选 + Ctrl+C）；条与球保持不可选，避免干扰拖动/点击 |
+| 内容右键菜单 | 卡片右键 → 自绘「复制 / 全选」；全局 `contextmenu` preventDefault 兜底屏蔽 WebView2 默认菜单 |
+| 打开原帖 | 卡片底部「打开原帖 ↗」链接 |
+| 菜单收起 | 菜单开着时点球/条**只收菜单**（不再顺手打开网站/帖子）；点其他应用或穿透空白区（窗口失焦）自动收起；Esc 也可关闭。失焦由后端 `WindowEvent::Focused(false)` → `float-blur` 事件驱动（穿透区域前端收不到点击，只能靠焦点事件） |
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS
