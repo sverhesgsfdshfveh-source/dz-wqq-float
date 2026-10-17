@@ -41,8 +41,6 @@ function render(t) {
   progress.classList.remove('sweep');
   void progress.offsetWidth;
   progress.classList.add('sweep');
-  // 未读红点亮起（点击球/条后熄灭）
-  ball.classList.add('unread');
   refreshTime();
   // 展开卡（textContent，永不 innerHTML）
   $('card-title').textContent = t.subject;
@@ -75,13 +73,11 @@ listen('conn-state', (e) => {
 ball.addEventListener('click', () => {
   if (moved) { moved = false; return; }
   if (!menu.hidden) { closeMenus(); return; }
-  ball.classList.remove('unread');
   invoke('open_url', { url: forumBase });
 });
 bar.addEventListener('click', () => {
   if (moved) { moved = false; return; }
   if (!menu.hidden) { closeMenus(); return; }
-  ball.classList.remove('unread');
   if (current) invoke('open_url', { url: current.url });
 });
 

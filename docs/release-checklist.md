@@ -105,8 +105,8 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 
 | 项 | 实现 |
 |---|---|
-| 球条融合 | **球 64→80px，条 44→52px**；条左移 12px（`#ball{margin-right:-12px}` + 条 `z-index` 低于球），球右缘压住条左端 → 消除原 8px 断缝；条 `padding-left:46px`，文字距球右缘约 34px |
-| 球体 | 径向渐变深蓝黑底 + `conic-gradient` 渐变光环（`mask` 裁成 2.5px 边）+ 顶部高光 + 双层蓝色辉光 + 底部投影；未读红点 15px 移到球右下 |
+| 球条融合 | **球 64→80px，条 44→52px**；条左移 40px（球半径，`#ball{margin-right:-40px}` + 条 `z-index` 低于球），胶囊左半圆（半径 26px，最远点距球心 √(26²+26²)≈36.8px）完整藏进球内 → 连接处看不到任何胶囊转角圆弧；条 `padding-left:74px`，文字距球右缘约 34px |
+| 球体 | 径向渐变深蓝黑底 + `conic-gradient` 渐变光环（`mask` 裁成 2.5px 边）+ 顶部高光 + 双层蓝色辉光 + 底部投影；**移除未读红点**（设计稿红点是 logo 图案的一部分，非功能徽标） |
 | 胶囊 | 深色/浅色磨砂玻璃（`backdrop-filter: blur(20px) saturate(1.4)`）+ 1px 边框 + 顶部高光 + hover 提亮；标题 15.5px/500，时间前置细竖线，右侧时间用等宽数字 |
 | 进度线 | 条底 +6px（`top:58px`），左右各内缩 14px，白/蓝灰渐变 + 微光 |
 | 布局联动 | **卡片 top 66→88px**（球底 +8）、`CARD_TOP` 同步；悬停桥接带 14→24px（`#barwrap::after` 与 `collectRects` 扩展同时改）；窗口初始高 84→100 |
@@ -118,5 +118,5 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 - 配置：`%APPDATA%\cn.weiququ.float\config.json`；日志：同目录 `log.txt`（仅失败时写入）
   （Tauri `app_data_dir` 用 bundle identifier 命名，非 productName）
 - 数据接口：`wqq_notifier.php`（已在 DiscuzX5 README 二开保护清单登记）
-- 悬浮窗：球 80px（压住条左端 12px）+ 条高 52px/max 640px，窗口高 100（卡片展开时动态加高）；
+- 悬浮窗：球 80px（压住胶囊左端 40px，胶囊左半圆完全藏于球后）+ 条高 52px/max 640px，窗口高 100（卡片展开时动态加高）；
   拖到屏幕右缘 40px 内自动吸附（右边距 8px）

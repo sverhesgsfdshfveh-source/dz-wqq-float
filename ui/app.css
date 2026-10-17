@@ -37,7 +37,6 @@ body {
   --ball-inner-hi: rgba(255, 255, 255, 0.1);
   --ball-inner-lo: rgba(0, 0, 0, 0.55);
   --ball-drop: rgba(0, 0, 0, 0.55);
-  --ball-badge-ring: #0d1018;
 }
 /* 跟随系统：系统为浅色时用浅色配色（含球体，保持整体和谐） */
 @media (prefers-color-scheme: light) {
@@ -70,13 +69,12 @@ body {
     --ball-inner-hi: rgba(255, 255, 255, 0.98);
     --ball-inner-lo: rgba(90, 115, 155, 0.3);
     --ball-drop: rgba(30, 45, 80, 0.32);
-    --ball-badge-ring: #f4f7fc;
   }
 }
 ::selection { background: var(--sel); }
 
-/* 悬浮组合：球左条右，条从球后伸出 12px（负 margin）→ 两者无缝连成一体。
-   球 80px、条 52px，flex 交叉轴居中；窗口尺寸由前端动态上报 resize。 */
+/* 悬浮组合：胶囊左端整体藏进球后（条左移 40px = 球半径），连接处看不到任何转角圆弧。
+   胶囊左半圆半径 26px，最远点距球心 √(26²+26²)≈36.8px < 球半径 40px → 完全覆盖。 */
 #hud {
   position: absolute; left: 0; top: 0;
   display: flex; align-items: center; gap: 0;
@@ -86,7 +84,7 @@ body {
 #ball {
   position: relative; z-index: 2;
   width: 80px; height: 80px; border-radius: 50%; flex-shrink: 0;
-  margin-right: -12px;
+  margin-right: -40px;
   background:
     radial-gradient(circle at 34% 24%, var(--ball-sheen) 0%, rgba(255, 255, 255, 0) 46%),
     radial-gradient(circle at 50% 46%, var(--ball-g1) 0%, var(--ball-g2) 52%, var(--ball-g3) 100%);
@@ -120,16 +118,6 @@ body {
   mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
   pointer-events: none;
 }
-/* 未读红点徽标：新帖到达亮起，点击球/条后熄灭 */
-#ball::after {
-  content: ''; position: absolute; right: 2px; bottom: 7px;
-  width: 15px; height: 15px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #ff6a5c, #d81f10 72%);
-  box-shadow: 0 0 0 2.5px var(--ball-badge-ring), 0 0 10px rgba(255, 70, 50, 0.65);
-  opacity: 0; transform: scale(0.4); transition: opacity 200ms, transform 200ms;
-  pointer-events: none;
-}
-#ball.unread::after { opacity: 1; transform: scale(1); }
 /* 连不上：橙色警示圈 */
 #ball.warn { box-shadow: 0 0 0 3px rgba(255, 139, 61, 0.85), 0 0 14px rgba(255, 139, 61, 0.5), 0 6px 18px rgba(0, 0, 0, 0.5); }
 #ball img {
@@ -151,7 +139,7 @@ body {
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   backdrop-filter: blur(20px) saturate(1.4);
   border: 1px solid var(--bar-border);
-  border-radius: 26px; padding: 0 20px 0 46px;
+  border-radius: 26px; padding: 0 20px 0 74px;
   display: flex; align-items: center; gap: 12px;
   width: fit-content; max-width: 640px;
   color: var(--text); cursor: pointer;
@@ -203,7 +191,7 @@ body {
 /* 进度线：胶囊下方 6px 细线，左亮右渐隐；新帖到达播放一次扫光。
    条在 barwrap 内 top 0，高度 52 → 线 top 58 */
 #progress {
-  position: absolute; left: 14px; right: 14px; top: 58px; height: 2px;
+  position: absolute; left: 26px; right: 14px; top: 58px; height: 2px;
   border-radius: 2px; overflow: hidden;
   background: linear-gradient(90deg, var(--prog-a) 0%, var(--prog-b) 42%, var(--prog-c) 78%, rgba(0, 0, 0, 0) 100%);
   box-shadow: 0 0 8px var(--prog-glow);
