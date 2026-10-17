@@ -4,6 +4,7 @@
 
 - **便携单 exe（主推）**：`src-tauri/target/release/wqq-float.exe`
   - 图标为论坛自定义站标（md5 d503670d），前端资源已内嵌
+  - 实测体积 11.8MB（zip 后 3.9MB；tauri 全家桶 + rustls + 内嵌前端，strip+lto 已启用）
   - 目标体积 ~3-5MB，双击即用，无安装步骤
 - **NSIS 安装版（可选，暂缓）**：tauri-cli 因 zip crate 全线 yank 无法安装（见 ledger Task 2 裁定），NSIS 打包暂缺；便携 exe 已覆盖全部功能（自启走注册表 HKCU\Software\Microsoft\Windows\CurrentVersion\Run，无需安装器）
 
