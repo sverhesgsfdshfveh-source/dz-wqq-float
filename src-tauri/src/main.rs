@@ -147,6 +147,23 @@ fn main() {
                     .build(app)?;
             }
 
+            // 设置窗：启动时预创建（隐藏）。实测运行中首次创建设置窗会整窗白屏
+            // （WebView2 在已有窗口后动态创建时的加载异常），预创建后打开只需 show
+            {
+                use tauri::{WebviewUrl, WebviewWindowBuilder};
+                let _ = WebviewWindowBuilder::new(
+                    app,
+                    "settings",
+                    WebviewUrl::App("settings.html".into()),
+                )
+                .title("wqq-float 设置")
+                .inner_size(420.0, 410.0)
+                .resizable(false)
+                .visible(false)
+                .skip_taskbar(true)
+                .build();
+            }
+
             // 两个后台任务：数据轮询 + 光标穿透判定（方案一'）
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(poller::run_poller(
