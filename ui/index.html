@@ -24,6 +24,7 @@
           <span id="card-time"></span> · 回复 <span id="card-replies"></span> · 浏览 <span id="card-views"></span>
         </div>
         <div class="summary" id="card-summary"></div>
+        <a id="card-open" class="open-link" href="#">打开原帖 ↗</a>
       </div>
     </div>
   </div>
@@ -32,6 +33,12 @@
     <div class="mi" data-act="forum">打开论坛</div>
     <div class="mi" data-act="settings">设置</div>
     <div class="mi danger" data-act="quit">退出</div>
+  </div>
+
+  <!-- 卡片内容右键菜单：复制/全选（屏蔽 WebView2 默认菜单，提供自绘替代） -->
+  <div id="cmenu" hidden>
+    <div class="mi" data-act="copy">复制</div>
+    <div class="mi" data-act="selectall">全选</div>
   </div>
 
   <script src="app.js"></script>

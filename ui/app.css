@@ -2,6 +2,43 @@
 html, body { background: transparent; height: 100%; overflow: hidden; }
 body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user-select: none; }
 
+/* ===== 主题变量：默认纯黑（同对标图）；body.theme-system + 系统浅色时切换浅色 ===== */
+:root {
+  --bar-bg: rgba(16, 17, 22, 0.86);
+  --card-bg: rgba(16, 17, 22, 0.94);
+  --menu-bg: rgba(30, 30, 30, 0.96);
+  --text: #f2f3f5;
+  --text-dim: #9a9daa;
+  --text-card: #d8dae2;
+  --text-title: #fff;
+  --line: rgba(255, 255, 255, 0.07);
+  --hover: rgba(255, 255, 255, 0.09);
+  --prog-a: rgba(255, 255, 255, 0.85);
+  --prog-b: rgba(255, 255, 255, 0.45);
+  --prog-c: rgba(255, 255, 255, 0.1);
+  --link: #6ea8ff;
+  --sel: rgba(110, 168, 255, 0.35);
+}
+/* 跟随系统：系统为浅色时用浅色配色（球体保持深色，红鹤 logo 更清晰） */
+@media (prefers-color-scheme: light) {
+  body.theme-system {
+    --bar-bg: rgba(250, 249, 245, 0.93);
+    --card-bg: rgba(250, 249, 245, 0.97);
+    --menu-bg: rgba(252, 251, 248, 0.98);
+    --text: #2c2a24;
+    --text-dim: #7d7668;
+    --text-card: #4a463c;
+    --text-title: #1e1c18;
+    --line: rgba(0, 0, 0, 0.08);
+    --hover: rgba(0, 0, 0, 0.06);
+    --prog-a: rgba(60, 55, 45, 0.7);
+    --prog-b: rgba(60, 55, 45, 0.32);
+    --prog-c: rgba(60, 55, 45, 0.06);
+    --link: #2f6fd0;
+  }
+}
+::selection { background: var(--sel); }
+
 /* 悬浮组合：右缘垂直居中（球左条右，同对标图）。hud 高度只由球决定（54px），
    卡片绝对定位不参与布局 → 展开不挤动条与球 */
 #hud {
@@ -52,11 +89,11 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
 /* 通知条：深色半透明胶囊（对标样板图） */
 #bar {
   min-height: 44px;
-  background: rgba(16, 17, 22, 0.86); backdrop-filter: blur(14px);
+  background: var(--bar-bg); backdrop-filter: blur(14px);
   border-radius: 22px; padding: 0 20px;
   display: flex; align-items: center; gap: 12px;
   width: fit-content; max-width: 640px;
-  color: #f2f3f5; cursor: pointer;
+  color: var(--text); cursor: pointer;
   box-shadow: 0 4px 16px rgba(0,0,0,.4);
 }
 #ticker { min-width: 0; overflow: hidden; }
@@ -71,13 +108,13 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
   from { transform: translateY(-100%); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
-#time { font-size: 12px; color: #9a9daa; flex-shrink: 0; }
+#time { font-size: 12px; color: var(--text-dim); flex-shrink: 0; }
 
 /* 进度线：胶囊下方细线，左亮右渐隐（对标样板图）；新帖到达播放一次扫光 */
 #progress {
   position: absolute; left: 6px; right: 6px; top: 52px; height: 2px;
   border-radius: 1px; overflow: hidden;
-  background: linear-gradient(90deg, rgba(255,255,255,.85) 0%, rgba(255,255,255,.45) 45%, rgba(255,255,255,.1) 82%, rgba(255,255,255,0) 100%);
+  background: linear-gradient(90deg, var(--prog-a) 0%, var(--prog-b) 45%, var(--prog-c) 82%, rgba(0,0,0,0) 100%);
 }
 #progress::after {
   content: ''; position: absolute; inset: 0;
@@ -87,31 +124,39 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
 #progress.sweep::after { animation: sweep 900ms cubic-bezier(.3,0,.3,1); }
 @keyframes sweep { to { transform: translateX(100%); } }
 
-/* 展开卡：绝对定位于条下方（条与球位置不动），hover 条/卡时缓动展开 */
+/* 展开卡：绝对定位于条下方（条与球位置不动），hover 条/卡时缓动展开；
+   内容可选中复制（user-select: text），摘要区像网页一样可框选 */
 #card {
   position: absolute; top: calc(100% + 12px); right: 0;
   min-width: 360px; max-width: 640px;
-  background: rgba(16, 17, 22, 0.94); backdrop-filter: blur(16px);
-  border-radius: 14px; border: 1px solid rgba(255,255,255,.07);
+  background: var(--card-bg); backdrop-filter: blur(16px);
+  border-radius: 14px; border: 1px solid var(--line);
   padding: 0 18px;
   max-height: 0; opacity: 0; overflow: hidden;
-  color: #d8dae2; cursor: default;
+  color: var(--text-card); cursor: default;
+  user-select: text;
   box-shadow: 0 8px 26px rgba(0,0,0,.5);
   transition: max-height 250ms cubic-bezier(.4,0,.2,1), opacity 250ms cubic-bezier(.4,0,.2,1), padding 250ms cubic-bezier(.4,0,.2,1);
 }
 #barwrap:hover #card { max-height: var(--card-max, 300px); opacity: 1; padding: 14px 18px; }
-#card h2 { font-size: 15px; color: #fff; margin-bottom: 6px; line-height: 1.4; }
-#card .meta { font-size: 12px; color: #9a9daa; margin-bottom: 8px; }
-#card .summary { font-size: 13px; line-height: 1.7; max-height: 180px; overflow: hidden; white-space: pre-wrap; }
+#card h2 { font-size: 15px; color: var(--text-title); margin-bottom: 6px; line-height: 1.4; }
+#card .meta { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+#card .summary { font-size: 13px; line-height: 1.7; max-height: 180px; overflow: hidden; white-space: pre-wrap; cursor: text; }
+/* 打开原帖链接 */
+#card .open-link {
+  display: inline-block; margin-top: 10px; font-size: 13px;
+  color: var(--link); text-decoration: none; cursor: pointer;
+}
+#card .open-link:hover { text-decoration: underline; }
 
-/* 球右键自绘菜单 */
-#menu {
+/* 自绘菜单（球功能菜单 + 卡片内容菜单） */
+#menu, #cmenu {
   position: absolute; z-index: 10;
-  background: rgba(30, 30, 30, 0.96); backdrop-filter: blur(14px);
-  border: 1px solid rgba(255,255,255,.08); border-radius: 10px;
+  background: var(--menu-bg); backdrop-filter: blur(14px);
+  border: 1px solid var(--line); border-radius: 10px;
   padding: 4px; min-width: 120px;
   box-shadow: 0 4px 18px rgba(0,0,0,.5);
 }
-#menu .mi { color: #ddd; font-size: 13px; padding: 7px 12px; border-radius: 7px; cursor: pointer; }
-#menu .mi:hover { background: rgba(255,255,255,.09); }
+#menu .mi, #cmenu .mi { color: var(--text-card); font-size: 13px; padding: 7px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+#menu .mi:hover, #cmenu .mi:hover { background: var(--hover); }
 #menu .mi.danger:hover { background: rgba(220,60,40,.25); }

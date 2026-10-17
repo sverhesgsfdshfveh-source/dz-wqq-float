@@ -6,7 +6,8 @@ const { listen } = window.__TAURI__.event;
 
 const $ = (id) => document.getElementById(id);
 const ball = $('ball'), bar = $('bar'), barwrap = $('barwrap'), card = $('card');
-const titleEl = $('title'), timeEl = $('time'), menu = $('menu'), progress = $('progress');
+const titleEl = $('title'), timeEl = $('time'), menu = $('menu'), cmenu = $('cmenu');
+const progress = $('progress');
 
 let forumBase = 'https://bbs.weiququ.cn';
 let current = null;          // 当前展示的 Thread
@@ -67,11 +68,14 @@ listen('conn-state', (e) => {
 });
 
 // ---------- 点击 ----------
+// 菜单开着时点球/条：只收起菜单（避免"关菜单"顺手打开网站/帖子的混乱）
 ball.addEventListener('click', () => {
+  if (!menu.hidden) { closeMenus(); return; }
   ball.classList.remove('unread');
   invoke('open_url', { url: forumBase });
 });
 bar.addEventListener('click', () => {
+  if (!menu.hidden) { closeMenus(); return; }
   ball.classList.remove('unread');
   if (current) invoke('open_url', { url: current.url });
 });
@@ -102,6 +106,13 @@ window.addEventListener('mouseup', endDrag);
 window.addEventListener('blur', endDrag);
 
 // 球右键自绘菜单：贴球下方居中定位（稳定，不随右键点漂移）
+// 统一关闭所有自绘菜单（球功能菜单 + 卡片内容菜单）
+function closeMenus() {
+  let changed = false;
+  if (!menu.hidden) { menu.hidden = true; changed = true; }
+  if (!cmenu.hidden) { cmenu.hidden = true; changed = true; }
+  if (changed) reportRects();
+}
 ball.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   const br = ball.getBoundingClientRect();
@@ -116,17 +127,50 @@ ball.addEventListener('contextmenu', (e) => {
   menu.style.top = top + 'px';
   reportRects(); // 立即上报：菜单区域马上进入可交互判定区（否则穿透导致 hover/点击失效）
 });
+// 卡片内容右键菜单：复制 / 全选（提供自绘替代，屏蔽 WebView2 默认菜单）
+card.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  cmenu.hidden = false;
+  const mw = cmenu.offsetWidth, mh = cmenu.offsetHeight;
+  cmenu.style.left = Math.max(4, Math.min(e.clientX, window.innerWidth - mw - 4)) + 'px';
+  cmenu.style.top = Math.max(4, Math.min(e.clientY, window.innerHeight - mh - 4)) + 'px';
+  reportRects();
+});
+cmenu.addEventListener('click', (e) => {
+  const act = e.target.dataset && e.target.dataset.act;
+  if (!act) return;
+  if (act === 'copy') {
+    try { document.execCommand('copy'); } catch (_) { /* 无选中内容时静默 */ }
+  } else if (act === 'selectall') {
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    const r = document.createRange();
+    r.selectNodeContents(card);
+    sel.addRange(r);
+  }
+  closeMenus();
+});
+// 打开原帖链接
+$('card-open').addEventListener('click', (e) => {
+  e.preventDefault();
+  if (current) invoke('open_url', { url: current.url });
+});
+// 全局屏蔽 WebView2 默认右键菜单（Tauri 默认已禁，双保险）
+document.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('click', (e) => {
-  if (!menu.hidden && !menu.contains(e.target)) {
-    menu.hidden = true;
-    reportRects();
+  if ((!menu.hidden && !menu.contains(e.target)) || (!cmenu.hidden && !cmenu.contains(e.target))) {
+    closeMenus();
   }
 });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeMenus();
+});
+// 窗口失焦（点其他应用、或点穿透空白区后下层聚焦）→ 收起菜单，避免一直挂着
+listen('float-blur', closeMenus);
 menu.addEventListener('click', (e) => {
   const act = e.target.dataset && e.target.dataset.act;
   if (!act) return;
-  menu.hidden = true;
-  reportRects();
+  closeMenus();
   if (act === 'forum') invoke('open_url', { url: forumBase });
   if (act === 'settings') invoke('open_settings').catch(() => {});
   if (act === 'quit') invoke('quit_app');
@@ -149,6 +193,7 @@ function collectRects() {
   push(card.getBoundingClientRect());
   // 菜单显示时纳入判定，否则鼠标移到菜单上会穿透（hover 与点击全部失效）
   if (!menu.hidden) push(menu.getBoundingClientRect());
+  if (!cmenu.hidden) push(cmenu.getBoundingClientRect());
   return rects;
 }
 function reportRects() {
@@ -167,11 +212,19 @@ barwrap.addEventListener('mouseenter', () => {
 barwrap.addEventListener('mouseleave', reportRects);
 
 // ---------- 初始化 ----------
-(async () => {
+// 读取配置：论坛地址 + 主题（dark 纯黑 / system 跟随系统）
+async function applyConfig() {
   try {
     const cfg = await invoke('get_settings');
     forumBase = cfg.forum_base || forumBase;
+    document.body.className = cfg.theme === 'system' ? 'theme-system' : 'theme-dark';
   } catch (_) { /* 默认值兜底 */ }
+}
+// 设置页保存后刷新主题
+listen('settings-changed', applyConfig);
+
+(async () => {
+  await applyConfig();
   reportRects();
   // 首轮 poll 常早于本页就绪（emit 事件丢失），主动补拉一次
   try {

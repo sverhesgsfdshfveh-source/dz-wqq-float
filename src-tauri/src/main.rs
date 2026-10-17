@@ -182,15 +182,23 @@ fn main() {
             // 拖动位置记忆：Moved 更新内存并标脏，poller 每轮落盘（drag region 拖动时前端收不到 mouseup）；
             // last_moved 供 watcher 在移动停止后做右缘吸附判定
             if window.label() == "float" {
-                if let tauri::WindowEvent::Moved(pos) = event {
-                    let app = window.app_handle();
-                    if let Some(st) = app.try_state::<std::sync::Arc<std::sync::Mutex<state::SharedState>>>() {
-                        if let Ok(mut s) = st.lock() {
-                            s.cfg.window_pos = Some((pos.x, pos.y));
-                            s.cfg_pos_dirty = true;
-                            s.last_moved = Some(std::time::Instant::now());
+                match event {
+                    tauri::WindowEvent::Moved(pos) => {
+                        let app = window.app_handle();
+                        if let Some(st) = app.try_state::<std::sync::Arc<std::sync::Mutex<state::SharedState>>>() {
+                            if let Ok(mut s) = st.lock() {
+                                s.cfg.window_pos = Some((pos.x, pos.y));
+                                s.cfg_pos_dirty = true;
+                                s.last_moved = Some(std::time::Instant::now());
+                            }
                         }
                     }
+                    // 失焦（点其他应用，或点穿透空白区后下层应用聚焦）→ 通知前端收起右键菜单
+                    tauri::WindowEvent::Focused(false) => {
+                        use tauri::Emitter as _;
+                        let _ = window.emit("float-blur", ());
+                    }
+                    _ => {}
                 }
             }
             // 设置窗：X 点击改为隐藏而非销毁——销毁后运行中重建会白屏（WebView2 动态创建异常）

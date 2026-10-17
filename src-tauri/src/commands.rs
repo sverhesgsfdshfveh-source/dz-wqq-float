@@ -1,10 +1,10 @@
 //! Tauri command：前端 invoke 的能力入口。
 
-use crate::config::{self, clamp_interval, Config, SourceKind};
+use crate::config::{self, clamp_interval, Config, SourceKind, ThemeKind};
 use crate::state::SharedState;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 /// 配置文件路径（setup 时 manage 注入）
@@ -64,11 +64,13 @@ pub fn save_window_pos(
 
 #[tauri::command]
 pub fn save_settings(
+    app: AppHandle,
     state: tauri::State<'_, Arc<Mutex<SharedState>>>,
     cfgpath: tauri::State<'_, CfgPath>,
     forum_base: String,
     source: String,
     poll_interval_secs: u64,
+    theme: String,
 ) -> Result<(), String> {
     let mut cfg = state.lock().map_err(|_| "state poisoned")?.cfg.clone();
     cfg.forum_base = forum_base.trim().trim_end_matches('/').to_string();
@@ -80,6 +82,10 @@ pub fn save_settings(
         _ => SourceKind::Wqq,
     };
     cfg.poll_interval_secs = clamp_interval(poll_interval_secs);
+    cfg.theme = match theme.as_str() {
+        "system" => ThemeKind::System,
+        _ => ThemeKind::Dark,
+    };
     {
         let mut s = state.lock().map_err(|_| "state poisoned")?;
         // 换论坛/源必须重置水位（Review Focus：旧水位会把新站永远判成无新帖）
@@ -87,12 +93,8 @@ pub fn save_settings(
     }
     let cfg = state.lock().map_err(|_| "state poisoned")?.cfg.clone();
     config::save(&cfgpath.0, &cfg).map_err(|e| e.to_string())?;
-    let _ = app_handle_emit_settings(&cfgpath);
-    Ok(())
-}
-
-fn app_handle_emit_settings(_cfgpath: &tauri::State<'_, CfgPath>) -> Result<(), String> {
-    // 预留：设置变更通知（当前 poller 每轮读共享状态，无需事件）
+    // 通知悬浮窗刷新（主题等设置变化后前端需重新读取配置）
+    let _ = app.emit("settings-changed", ());
     Ok(())
 }
 

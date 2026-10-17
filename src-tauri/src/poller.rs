@@ -156,6 +156,7 @@ pub async fn run_poller(
                 source: cfg_source.clone(),
                 poll_interval_secs: interval,
                 window_pos: None,
+                theme: crate::config::ThemeKind::Dark,
             },
             failures,
         );

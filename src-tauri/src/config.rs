@@ -11,6 +11,19 @@ pub enum SourceKind {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeKind {
+    /// 纯黑（默认，同对标图）
+    Dark,
+    /// 跟随系统浅色/深色
+    System,
+}
+
+fn default_theme() -> ThemeKind {
+    ThemeKind::Dark
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Config {
     /// 论坛根地址（不带尾斜杠），如 https://bbs.weiququ.cn
     pub forum_base: String,
@@ -19,6 +32,10 @@ pub struct Config {
     pub poll_interval_secs: u64,
     /// 悬浮窗上次位置（屏幕坐标）
     pub window_pos: Option<(i32, i32)>,
+    /// 主题：dark 纯黑 / system 跟随系统。
+    /// serde default 保证旧配置（无此字段）仍能反序列化，不会因缺字段回落默认配置丢设置
+    #[serde(default = "default_theme")]
+    pub theme: ThemeKind,
 }
 
 pub fn default_config() -> Config {
@@ -27,6 +44,7 @@ pub fn default_config() -> Config {
         source: SourceKind::Wqq,
         poll_interval_secs: 5,
         window_pos: None,
+        theme: ThemeKind::Dark,
     }
 }
 
@@ -67,6 +85,25 @@ mod tests {
         assert_eq!(c.source, SourceKind::Wqq);
         assert_eq!(c.poll_interval_secs, 5);
         assert_eq!(c.window_pos, None);
+        assert_eq!(c.theme, ThemeKind::Dark);
+    }
+
+    #[test]
+    fn old_config_without_theme_still_loads() {
+        // 旧版 config.json 无 theme 字段：必须能加载且不丢其它设置（serde default 兜底）
+        let p = tmp_path("old-no-theme");
+        std::fs::write(
+            &p,
+            r#"{"forum_base":"https://other.example.com","source":"rss","poll_interval_secs":30,"window_pos":[10,20]}"#,
+        )
+        .unwrap();
+        let c = load(&p);
+        assert_eq!(c.forum_base, "https://other.example.com");
+        assert_eq!(c.source, SourceKind::Rss);
+        assert_eq!(c.poll_interval_secs, 30);
+        assert_eq!(c.window_pos, Some((10, 20)));
+        assert_eq!(c.theme, ThemeKind::Dark);
+        let _ = std::fs::remove_file(&p);
     }
 
     #[test]

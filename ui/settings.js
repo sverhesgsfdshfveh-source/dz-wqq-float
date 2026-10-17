@@ -11,6 +11,7 @@ async function load() {
     $('forum-base').value = cfg.forum_base;
     $('source').value = cfg.source === 'rss' ? 'rss' : 'wqq';
     $('interval').value = cfg.poll_interval_secs;
+    $('theme').value = cfg.theme === 'system' ? 'system' : 'dark';
   } catch (e) {
     show('读取配置失败: ' + e, 'err');
   }
@@ -49,6 +50,7 @@ $('save').addEventListener('click', async () => {
       forumBase: $('forum-base').value,
       source: $('source').value,
       pollIntervalSecs: Number($('interval').value) || 5,
+      theme: $('theme').value,
     });
     show('已保存（若更换了论坛/数据源，将重新全量拉取）', 'ok');
   } catch (e) {
