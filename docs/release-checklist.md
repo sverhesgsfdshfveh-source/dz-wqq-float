@@ -78,7 +78,7 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 |---|---|---|
 | 球与条"在窗体中变换位置"、卡片被裁 | ①flex 顺序为球左条右，条宽随标题变化把球推着走；②拖动用 HTCAPTION 触发 Windows Aero Snap，实测窗口被压成 760x412/443，卡片展开即被窗口底裁掉 | ①`flex-direction: row-reverse`：球固定贴窗口右缘做锚点，条向左延伸；②`settle_geometry`：移动停止 400ms 后恢复基准尺寸（setup 时记录）+ 位置 clamp + 右缘吸附 |
 | 右键菜单跑到奇怪位置、hover 无反馈、点击无效 | 菜单区域未纳入穿透判定 `ui_rects`：鼠标移到菜单上即被判"窗外"→ 窗口穿透 → hover/click 全部失效；定位用右键点坐标，随点击位置漂移 | 菜单显示时纳入 rects 并即时上报；定位改贴球下方居中（下方空间不足自动翻到球上方） |
-| 设置窗打开全白 | float 窗口的 `additionalBrowserArgs` 影响后续创建的 WebView2 窗口 | 移除该参数（见上：提示音改 Rust 播放） |
+| 设置窗打开全白 | **两个独立根因**：①float 窗口的 `additionalBrowserArgs` 影响后续创建的 WebView2 窗口；②**运行中首次创建**设置窗本身就会白屏（启动时创建正常，WebView2 动态创建的加载异常） | ①移除该参数（提示音改 Rust 播放）；②setup 中**预创建**设置窗（`visible:false` + `skip_taskbar`），打开时仅 `show`+`focus` |
 | 点击"退出"没反应 | `app.exit(0)` 等所有窗口关闭，设置窗异常时挂起 | `quit_now`：先落盘配置再 `process::exit(0)`（托盘与球菜单共用） |
 
 ## 常量备忘
