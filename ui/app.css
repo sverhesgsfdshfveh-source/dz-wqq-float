@@ -2,10 +2,11 @@
 html, body { background: transparent; height: 100%; overflow: hidden; }
 body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user-select: none; }
 
-/* 悬浮组合：右缘垂直居中。hud 高度只由球决定（54px），卡片绝对定位不参与布局 → 条与球位置恒定 */
+/* 悬浮组合：右缘垂直居中。row-reverse → 球固定贴窗口右缘（锚点不随条宽变化漂移），
+   条在球左侧向左延伸；hud 高度只由球决定（54px），卡片绝对定位不参与布局 */
 #hud {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-  display: flex; align-items: flex-start; gap: 8px;
+  display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 8px;
 }
 
 /* 悬浮球 64px：深色径向渐变 + 蓝紫发光环（对标样板图），中心嵌论坛 logo */
@@ -98,7 +99,7 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
   box-shadow: 0 8px 26px rgba(0,0,0,.5);
   transition: max-height 250ms cubic-bezier(.4,0,.2,1), opacity 250ms cubic-bezier(.4,0,.2,1), padding 250ms cubic-bezier(.4,0,.2,1);
 }
-#barwrap:hover #card { max-height: 300px; opacity: 1; padding: 14px 18px; }
+#barwrap:hover #card { max-height: var(--card-max, 300px); opacity: 1; padding: 14px 18px; }
 #card h2 { font-size: 15px; color: #fff; margin-bottom: 6px; line-height: 1.4; }
 #card .meta { font-size: 12px; color: #9a9daa; margin-bottom: 8px; }
 #card .summary { font-size: 13px; line-height: 1.7; max-height: 180px; overflow: hidden; white-space: pre-wrap; }

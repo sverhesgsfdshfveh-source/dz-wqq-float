@@ -22,7 +22,22 @@ pub fn open_url(app: AppHandle, url: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
-    app.exit(0);
+    quit_now(&app);
+}
+
+/// 托盘菜单与前端命令共用的退出实现：先落盘配置（位置可能还在脏标记里），
+/// 再强制退出——`app.exit(0)` 会等所有窗口关闭，设置窗异常时会挂起
+/// （用户表现：点击"退出"没反应）
+pub fn quit_now(app: &AppHandle) {
+    if let (Some(st), Some(cp)) = (
+        app.try_state::<Arc<Mutex<SharedState>>>(),
+        app.try_state::<CfgPath>(),
+    ) {
+        if let Ok(s) = st.lock() {
+            let _ = config::save(&cp.0, &s.cfg);
+        }
+    }
+    std::process::exit(0);
 }
 
 #[tauri::command]

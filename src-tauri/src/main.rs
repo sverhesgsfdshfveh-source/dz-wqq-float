@@ -39,6 +39,10 @@ fn main() {
             if let Some(w) = app.get_webview_window("float") {
                 let mons = w.available_monitors().unwrap_or_default();
                 let ws = w.outer_size().unwrap_or(tauri::PhysicalSize::new(760, 700));
+                // 记录基准尺寸：Aero Snap（HTCAPTION 拖动副作用）会改窗口尺寸，静默后据此恢复
+                if let Ok(mut s) = st.lock() {
+                    s.base_size = Some((ws.width, ws.height));
+                }
                 let restored = {
                     let s = st.lock().expect("state lock");
                     s.cfg.window_pos.filter(|p| {
@@ -136,7 +140,7 @@ fn main() {
                                 };
                                 let _ = autostart_item.set_checked(now_on);
                             }
-                            "quit" => app.exit(0),
+                            "quit" => commands::quit_now(app),
                             _ => {}
                         }
                     })

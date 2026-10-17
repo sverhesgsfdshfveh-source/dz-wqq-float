@@ -12,15 +12,6 @@ let forumBase = 'https://bbs.weiququ.cn';
 let current = null;          // 当前展示的 Thread
 let connOk = true;
 
-// ---------- 新帖提示音（音效提取自 ZCode 的 task-notification-pop） ----------
-const notifyAudio = new Audio('assets/notify.mp3');
-function playNotify() {
-  try {
-    notifyAudio.currentTime = 0; // 连续新帖时从头播
-    notifyAudio.play().catch(() => { /* 自动播放被拒时静默 */ });
-  } catch (_) { /* 音频不可用时静默 */ }
-}
-
 // ---------- 相对时间 ----------
 function relTime(ts) {
   const d = Math.max(0, Date.now() / 1000 - ts);
@@ -37,8 +28,7 @@ function refreshTime() {
 setInterval(refreshTime, 30000);
 
 // ---------- 渲染 ----------
-// opts.silent：初始化渲染（启动补拉 / 首轮存量帖）不播提示音
-function render(t, opts) {
+function render(t) {
   current = t;
   // 长条：新帖标题向下滚动切换（300ms 动画）
   titleEl.textContent = t.subject;
@@ -60,15 +50,14 @@ function render(t, opts) {
   $('card-replies').textContent = t.replies;
   $('card-views').textContent = t.views;
   $('card-summary').textContent = t.summary || '（该帖无摘要内容）';
-  if (!(opts && opts.silent)) playNotify();
 }
 
 // ---------- 事件 ----------
+// 提示音已移到 Rust 侧播放（WebView2 autoplay 受限）；payload 为 {threads, initial}
 listen('new-threads', (e) => {
   const p = e.payload || {};
   const threads = p.threads || [];
-  // initial=true 是启动首轮的存量帖（20 条历史），不响提示音
-  if (threads.length > 0) render(threads[0], { silent: !!p.initial });
+  if (threads.length > 0) render(threads[0]);
 });
 
 listen('conn-state', (e) => {
@@ -112,20 +101,32 @@ function endDrag() {
 window.addEventListener('mouseup', endDrag);
 window.addEventListener('blur', endDrag);
 
-// 球右键自绘菜单
+// 球右键自绘菜单：贴球下方居中定位（稳定，不随右键点漂移）
 ball.addEventListener('contextmenu', (e) => {
   e.preventDefault();
+  const br = ball.getBoundingClientRect();
   menu.hidden = false;
-  menu.style.left = Math.max(0, e.clientX - menu.offsetWidth) + 'px';
-  menu.style.top = (e.clientY + 6) + 'px';
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  const left = Math.max(4, Math.min(br.left + br.width / 2 - mw / 2, window.innerWidth - mw - 4));
+  // 下方空间不足时翻到球上方
+  const top = (br.bottom + 6 + mh <= window.innerHeight - 4)
+    ? br.bottom + 6
+    : Math.max(4, br.top - mh - 6);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  reportRects(); // 立即上报：菜单区域马上进入可交互判定区（否则穿透导致 hover/点击失效）
 });
 document.addEventListener('click', (e) => {
-  if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true;
+  if (!menu.hidden && !menu.contains(e.target)) {
+    menu.hidden = true;
+    reportRects();
+  }
 });
 menu.addEventListener('click', (e) => {
   const act = e.target.dataset && e.target.dataset.act;
   if (!act) return;
   menu.hidden = true;
+  reportRects();
   if (act === 'forum') invoke('open_url', { url: forumBase });
   if (act === 'settings') invoke('open_settings').catch(() => {});
   if (act === 'quit') invoke('quit_app');
@@ -146,6 +147,8 @@ function collectRects() {
   push(barwrap.getBoundingClientRect(), 14);
   // 卡片展开时纳入判定，否则鼠标移到卡上会被判穿透
   push(card.getBoundingClientRect());
+  // 菜单显示时纳入判定，否则鼠标移到菜单上会穿透（hover 与点击全部失效）
+  if (!menu.hidden) push(menu.getBoundingClientRect());
   return rects;
 }
 function reportRects() {
@@ -154,7 +157,13 @@ function reportRects() {
 setInterval(reportRects, 250);
 window.addEventListener('resize', reportRects);
 // hover 展开/收起瞬间立即上报：卡片 bbox 变化不等 250ms 周期
-barwrap.addEventListener('mouseenter', reportRects);
+barwrap.addEventListener('mouseenter', () => {
+  // 卡片高度按窗口可用空间自适应（窗口被 Snap 压矮时也保证内容尽量完整）
+  const top = barwrap.getBoundingClientRect().bottom + 12 + 8;
+  const avail = Math.max(120, Math.min(300, window.innerHeight - top));
+  card.style.setProperty('--card-max', avail + 'px');
+  reportRects();
+});
 barwrap.addEventListener('mouseleave', reportRects);
 
 // ---------- 初始化 ----------
@@ -164,9 +173,9 @@ barwrap.addEventListener('mouseleave', reportRects);
     forumBase = cfg.forum_base || forumBase;
   } catch (_) { /* 默认值兜底 */ }
   reportRects();
-  // 首轮 poll 常早于本页就绪（emit 事件丢失），主动补拉一次（初始化渲染，不响提示音）
+  // 首轮 poll 常早于本页就绪（emit 事件丢失），主动补拉一次
   try {
     const t = await invoke('get_latest_thread');
-    if (t) render(t, { silent: true });
+    if (t) render(t);
   } catch (_) { /* 首轮无数据则等事件 */ }
 })();

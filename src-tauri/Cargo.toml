@@ -18,6 +18,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 quick-xml = "0.36"
 anyhow = "1"
+# 新帖提示音：Rust 端解码播放 mp3（不走 WebView2，避开其 autoplay 限制
+# 与 additionalBrowserArgs 影响设置窗渲染的副作用）
+rodio = { version = "0.20", default-features = false, features = ["minimp3"] }
 
 [profile.release]
 strip = true

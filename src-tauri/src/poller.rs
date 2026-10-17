@@ -186,6 +186,10 @@ pub async fn run_poller(
                         "new-threads",
                         serde_json::json!({ "threads": threads, "initial": initial }),
                     );
+                    // 运行期新帖才响；首轮 20 条存量帖不响
+                    if !initial {
+                        play_notify();
+                    }
                 }
                 let via = if used_rss { "rss" } else { "wqq" };
                 let _ = app.emit("conn-state", serde_json::json!({ "ok": true, "via": via }));
@@ -215,18 +219,19 @@ pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::S
         tokio::time::sleep(Duration::from_millis(10)).await;
         let Some(w) = app.get_webview_window("float") else { continue };
 
-        let should_snap = {
+        let (should_settle, base_size) = {
             let Ok(mut s) = state.lock() else { continue };
-            match s.last_moved {
+            let due = match s.last_moved {
                 Some(t) if t.elapsed() >= Duration::from_millis(400) => {
-                    s.last_moved = None; // 每次停止移动只判定一次
+                    s.last_moved = None; // 每次停止移动只整定一次
                     true
                 }
                 _ => false,
-            }
+            };
+            (due, s.base_size)
         };
-        if should_snap {
-            snap_to_right(&w);
+        if should_settle {
+            settle_geometry(&w, base_size, &state);
         }
 
         let (rects, dragging) = state
@@ -264,20 +269,69 @@ pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::S
     }
 }
 
-/// 右缘吸附：窗口右缘距所在显示器右缘 <40px 时贴边（右边距 8px，与默认位置一致），
-/// 让"拖回右侧"自然归位，避免条悬浮在屏幕中间。
-fn snap_to_right(w: &tauri::WebviewWindow) {
+/// 新帖提示音：内嵌 mp3（提取自 ZCode task-notification-pop）用 rodio 解码播放。
+/// 独立线程 + 不阻塞轮询；播放设备不可用/解码失败时静默。
+/// 不走前端 WebView2：其 autoplay 策略需要 additionalBrowserArgs 放开，
+/// 而该参数会破坏设置窗渲染（实测白屏），故移到 Rust 侧。
+fn play_notify() {
+    std::thread::spawn(|| {
+        let Ok((_stream, handle)) = rodio::OutputStream::try_default() else {
+            return;
+        };
+        let Ok(sink) = rodio::Sink::try_new(&handle) else {
+            return;
+        };
+        let data: &[u8] = include_bytes!("../../ui/assets/notify.mp3");
+        let Ok(src) = rodio::Decoder::new(std::io::Cursor::new(data)) else {
+            return;
+        };
+        sink.append(src);
+        sink.sleep_until_end();
+    });
+}
+
+/// 移动停止后的窗口几何整定：
+/// 1) 尺寸守卫——HTCAPTION 拖动会触发 Windows Aero Snap 改无边框窗口尺寸
+///    （实测 760x700 被压成 760x443，卡片展开即被窗口底裁掉），恢复基准尺寸；
+/// 2) 位置 clamp 回所在显示器（Snap 后可能半出屏）；
+/// 3) 右缘吸附（距屏幕右缘 <40px 时贴 8px 边距）。
+fn settle_geometry(
+    w: &tauri::WebviewWindow,
+    base_size: Option<(u32, u32)>,
+    state: &Arc<Mutex<crate::state::SharedState>>,
+) {
+    // 1) 尺寸守卫
+    if let (Ok(ws), Some((bw, bh))) = (w.outer_size(), base_size) {
+        if ws.width != bw || ws.height != bh {
+            let _ = w.set_size(tauri::PhysicalSize::new(bw, bh));
+            // set_size 是异步派发：重新标记，400ms 后再整定位置
+            if let Ok(mut s) = state.lock() {
+                s.last_moved = Some(std::time::Instant::now());
+            }
+            return;
+        }
+    }
     let (Ok(pos), Ok(Some(mon))) = (w.outer_position(), w.current_monitor()) else {
         return;
     };
     let Ok(ws) = w.outer_size() else { return };
     let mp = mon.position();
     let ms = mon.size();
-    let gap = (mp.x + ms.width as i32) - (pos.x + ws.width as i32);
-    if (0..40).contains(&gap) {
-        let nx = mp.x + ms.width as i32 - ws.width as i32 - 8;
-        if nx != pos.x {
-            let _ = w.set_position(tauri::PhysicalPosition::new(nx, pos.y));
-        }
+    // 2) 位置 clamp
+    let min_x = mp.x;
+    let max_x = mp.x + ms.width as i32 - ws.width as i32;
+    let min_y = mp.y;
+    let max_y = mp.y + ms.height as i32 - ws.height as i32;
+    let nx = pos.x.clamp(min_x.min(max_x), min_x.max(max_x));
+    let ny = pos.y.clamp(min_y.min(max_y), min_y.max(max_y));
+    // 3) 右缘吸附
+    let right_gap = (mp.x + ms.width as i32) - (nx + ws.width as i32);
+    let target_x = if (0..40).contains(&right_gap) {
+        mp.x + ms.width as i32 - ws.width as i32 - 8
+    } else {
+        nx
+    };
+    if target_x != pos.x || ny != pos.y {
+        let _ = w.set_position(tauri::PhysicalPosition::new(target_x, ny));
     }
 }
