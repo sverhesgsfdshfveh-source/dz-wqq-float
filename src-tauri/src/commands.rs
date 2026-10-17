@@ -208,28 +208,38 @@ pub fn open_settings(app: AppHandle) -> Result<(), String> {
 
 // ---- Windows 透明窗"镂空"（colorkey 抠图） ----
 // 原理与约束见 main.rs setup 注释。关键点：
-// - 每次穿透切换（set_ignore_cursor_events）会重写 GWL_EXSTYLE，分层属性（含 colorkey）
-//   被系统重置 → 必须在每次切换后重新 apply；wry/tao 的 resize 也会冲掉，故由
-//   光标 watcher 高频兜底 + 启动期多轮补设双保险。
+// - 穿透切换（set_ignore_cursor_events）经 tao apply_diff 重写 GWL_EXSTYLE：
+//   切到"可交互"时 tao 的样式表里没有 WS_EX_LAYERED（它只给 IGNORE_CURSOR_EVENT
+//   加 LAYERED），LAYERED 标志被整个移除 → 分层属性清空、SetLayeredWindowAttributes
+//   返回 ERROR_INVALID_PARAMETER。所以补设必须先把 WS_EX_LAYERED 加回 GWL_EXSTYLE。
 #[cfg(windows)]
 pub fn apply_colorkey(w: &tauri::WebviewWindow) {
     use windows::Win32::Foundation::{COLORREF, HWND};
     use windows::Win32::Graphics::Dwm::{DwmEnableBlurBehindWindow, DWM_BLURBEHIND};
     use windows::Win32::Graphics::Gdi::HRGN;
-    use windows::Win32::UI::WindowsAndMessaging::{SetLayeredWindowAttributes, LWA_ALPHA, LWA_COLORKEY};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, GWL_EXSTYLE,
+        LWA_ALPHA, LWA_COLORKEY, WS_EX_LAYERED,
+    };
     unsafe {
         let _ = w.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
+        let Ok(h) = w.hwnd() else { return };
+        let hwnd = HWND(h.0);
+        // 1) 确保 WS_EX_LAYERED 在位（tao 切可交互时会把它抹掉）
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+        if ex & WS_EX_LAYERED.0 == 0 {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_LAYERED.0) as isize);
+        }
+        // 2) 关 DWM 灰雾
         let bb = DWM_BLURBEHIND {
             dwFlags: 1, // DWM_BB_ENABLE
             fEnable: false.into(),
             hRgnBlur: HRGN(std::ptr::null_mut()),
             fTransitionOnMaximized: false.into(),
         };
-        if let Ok(h) = w.hwnd() {
-            let _ = DwmEnableBlurBehindWindow(HWND(h.0), &bb);
-            // colorkey+alpha 一次并设（0x3）：单设 colorkey 会被 wry 的 LWA_ALPHA 覆盖
-            let _ = SetLayeredWindowAttributes(HWND(h.0), COLORREF(0x000000), 255, LWA_COLORKEY | LWA_ALPHA);
-        }
+        let _ = DwmEnableBlurBehindWindow(hwnd, &bb);
+        // 3) colorkey+alpha 一次并设（0x3）：单设 colorkey 会被 wry 的 LWA_ALPHA 覆盖
+        let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0x000000), 255, LWA_COLORKEY | LWA_ALPHA);
     }
 }
 
