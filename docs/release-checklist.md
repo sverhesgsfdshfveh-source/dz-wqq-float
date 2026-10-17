@@ -67,10 +67,19 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 - 音效文件 `ui/assets/notify.mp3`（0.3 秒），提取自 ZCode 的 `task-notification-pop`
 - 行为：**运行期间**有新帖到达 → 播放；启动首帧、补拉、首轮 20 条存量帖**不播**
   （poller 在 `new-threads` 事件里带 `initial` 标记，首轮水位为 0 时置 true）
-- 依赖 `additionalBrowserArgs` 的 `--autoplay-policy=no-user-gesture-required`：
-  不加时 WebView2 会因无用户手势拒绝自动播放（该参数覆盖 Tauri 默认值，
-  已保留默认的 `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`）
-- 暂未做设置页开关（如需静音场景可后续加）
+- **实现走 Rust 侧**（rodio + minimp3 解码内嵌 mp3，独立线程，播放失败静默）：
+  最初试过前端 `new Audio` + WebView2 的 `--autoplay-policy=no-user-gesture-required`，
+  但实测该 `additionalBrowserArgs` 会波及后创建的 WebView2 窗口——**设置窗整窗白屏**，
+  故放弃该参数，提示音移到 Rust 播放，前端不再持有音频对象
+
+## 2026-10-17 第二轮用户反馈修复（供排障）
+
+| 现象 | 根因 | 修复 |
+|---|---|---|
+| 球与条"在窗体中变换位置"、卡片被裁 | ①flex 顺序为球左条右，条宽随标题变化把球推着走；②拖动用 HTCAPTION 触发 Windows Aero Snap，实测窗口被压成 760x412/443，卡片展开即被窗口底裁掉 | ①`flex-direction: row-reverse`：球固定贴窗口右缘做锚点，条向左延伸；②`settle_geometry`：移动停止 400ms 后恢复基准尺寸（setup 时记录）+ 位置 clamp + 右缘吸附 |
+| 右键菜单跑到奇怪位置、hover 无反馈、点击无效 | 菜单区域未纳入穿透判定 `ui_rects`：鼠标移到菜单上即被判"窗外"→ 窗口穿透 → hover/click 全部失效；定位用右键点坐标，随点击位置漂移 | 菜单显示时纳入 rects 并即时上报；定位改贴球下方居中（下方空间不足自动翻到球上方） |
+| 设置窗打开全白 | float 窗口的 `additionalBrowserArgs` 影响后续创建的 WebView2 窗口 | 移除该参数（见上：提示音改 Rust 播放） |
+| 点击"退出"没反应 | `app.exit(0)` 等所有窗口关闭，设置窗异常时挂起 | `quit_now`：先落盘配置再 `process::exit(0)`（托盘与球菜单共用） |
 
 ## 常量备忘
 
