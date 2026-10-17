@@ -203,8 +203,8 @@ function collectRects() {
     }
   };
   push(ball.getBoundingClientRect());
-  // 条容器底部外扩 14px：覆盖条与卡片之间的悬停桥接带
-  push(barwrap.getBoundingClientRect(), 14);
+  // 条容器底部外扩 24px：覆盖条与卡片之间的悬停桥接带（与 CSS #barwrap::after 高度一致）
+  push(barwrap.getBoundingClientRect(), 24);
   // 卡片展开时纳入判定，否则鼠标移到卡上会被判穿透
   push(card.getBoundingClientRect());
   // 菜单显示时纳入判定，否则鼠标移到菜单上会穿透（hover 与点击全部失效）
@@ -220,7 +220,7 @@ window.addEventListener('resize', reportRects);
 // ---------- 窗口自适应尺寸（窗口贴合"球+条"组合；卡片展开时加高，收起后缩回） ----------
 // 窗口高度只有球高量级 → 可拖到屏幕最顶/最底；浏览器大窗口的边界限制与 Snap 问题随之消失
 const RESIZE_PAD = 20;   // 右/下余量（阴影/光晕）
-const CARD_TOP = 66;     // 卡片顶在窗口内的 y（条顶 10 + 条高 44 + 间隙 12）
+const CARD_TOP = 88;     // 卡片顶在窗口内的 y（球高 80 + 间隙 8）
 let shrinkTimer = null;
 
 function baseSize() {

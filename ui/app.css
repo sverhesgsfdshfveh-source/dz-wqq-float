@@ -1,159 +1,234 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { background: transparent; height: 100%; overflow: hidden; }
-body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user-select: none; }
+body {
+  font: 14px/1.6 "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  user-select: none;
+}
 
 /* ===== 主题变量：默认纯黑（同对标图）；body.theme-system + 系统浅色时切换浅色 ===== */
 :root {
-  --bar-bg: rgba(16, 17, 22, 0.86);
-  --card-bg: rgba(16, 17, 22, 0.94);
-  --menu-bg: rgba(30, 30, 30, 0.96);
-  --text: #f2f3f5;
-  --text-dim: #9a9daa;
-  --text-card: #d8dae2;
+  --bar-bg: linear-gradient(180deg, rgba(36, 40, 52, 0.86) 0%, rgba(12, 14, 20, 0.94) 100%);
+  --bar-bg-hover: linear-gradient(180deg, rgba(44, 49, 63, 0.9) 0%, rgba(16, 19, 27, 0.96) 100%);
+  --bar-border: rgba(255, 255, 255, 0.08);
+  --bar-border-hover: rgba(140, 180, 255, 0.28);
+  --card-bg: rgba(15, 17, 24, 0.95);
+  --menu-bg: rgba(26, 29, 38, 0.97);
+  --text: #f3f5fa;
+  --text-dim: rgba(203, 212, 232, 0.52);
+  --text-card: #d4d9e6;
   --text-title: #fff;
-  --line: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.08);
   --hover: rgba(255, 255, 255, 0.09);
-  --prog-a: rgba(255, 255, 255, 0.85);
-  --prog-b: rgba(255, 255, 255, 0.45);
+  --prog-a: rgba(255, 255, 255, 0.92);
+  --prog-b: rgba(255, 255, 255, 0.46);
   --prog-c: rgba(255, 255, 255, 0.1);
+  --prog-glow: rgba(180, 205, 255, 0.25);
   --link: #6ea8ff;
   --sel: rgba(110, 168, 255, 0.35);
   /* 球体（随主题，避免浅色主题下深球突兀） */
-  --ball-g1: #3b4156;
-  --ball-g2: #1c202c;
-  --ball-g3: #0c0e14;
-  --ball-ring: rgba(132, 162, 255, 0.32);
-  --ball-halo1: rgba(92, 132, 255, 0.42);
-  --ball-halo2: rgba(80, 110, 255, 0.26);
-  --ball-drop: rgba(0, 0, 0, 0.5);
-  --ball-badge-ring: #12141c;
+  --ball-g1: #33415f;
+  --ball-g2: #131a2a;
+  --ball-g3: #060a12;
+  --ball-ring: rgba(130, 180, 255, 0.65);
+  --ball-halo1: rgba(70, 135, 255, 0.58);
+  --ball-halo2: rgba(45, 100, 255, 0.3);
+  --ball-halo-ring: rgba(70, 125, 255, 0.12);
+  --ball-sheen: rgba(255, 255, 255, 0.18);
+  --ball-inner-hi: rgba(255, 255, 255, 0.1);
+  --ball-inner-lo: rgba(0, 0, 0, 0.55);
+  --ball-drop: rgba(0, 0, 0, 0.55);
+  --ball-badge-ring: #0d1018;
 }
 /* 跟随系统：系统为浅色时用浅色配色（含球体，保持整体和谐） */
 @media (prefers-color-scheme: light) {
   body.theme-system {
-    --bar-bg: rgba(250, 249, 245, 0.93);
-    --card-bg: rgba(250, 249, 245, 0.97);
-    --menu-bg: rgba(252, 251, 248, 0.98);
-    --text: #2c2a24;
-    --text-dim: #7d7668;
-    --text-card: #4a463c;
-    --text-title: #1e1c18;
-    --line: rgba(0, 0, 0, 0.08);
-    --hover: rgba(0, 0, 0, 0.06);
-    --prog-a: rgba(60, 55, 45, 0.7);
-    --prog-b: rgba(60, 55, 45, 0.32);
-    --prog-c: rgba(60, 55, 45, 0.06);
+    --bar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(243, 246, 252, 0.97) 100%);
+    --bar-bg-hover: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 249, 253, 0.99) 100%);
+    --bar-border: rgba(20, 32, 54, 0.14);
+    --bar-border-hover: rgba(70, 120, 210, 0.32);
+    --card-bg: rgba(250, 251, 254, 0.97);
+    --menu-bg: rgba(252, 253, 255, 0.98);
+    --text: #1c2433;
+    --text-dim: rgba(40, 52, 74, 0.52);
+    --text-card: #3f4a5e;
+    --text-title: #131a26;
+    --line: rgba(20, 32, 54, 0.1);
+    --hover: rgba(20, 32, 54, 0.06);
+    --prog-a: rgba(70, 110, 190, 0.55);
+    --prog-b: rgba(70, 110, 190, 0.24);
+    --prog-c: rgba(70, 110, 190, 0.04);
+    --prog-glow: rgba(70, 110, 190, 0.1);
     --link: #2f6fd0;
     --ball-g1: #ffffff;
-    --ball-g2: #f4f2ee;
-    --ball-g3: #e3dfd7;
-    --ball-ring: rgba(120, 150, 240, 0.4);
-    --ball-halo1: rgba(120, 150, 240, 0.35);
-    --ball-halo2: rgba(120, 150, 240, 0.2);
-    --ball-drop: rgba(0, 0, 0, 0.18);
-    --ball-badge-ring: #faf9f5;
+    --ball-g2: #f0f4fa;
+    --ball-g3: #d6dfec;
+    --ball-ring: rgba(100, 145, 245, 0.55);
+    --ball-halo1: rgba(90, 145, 255, 0.5);
+    --ball-halo2: rgba(70, 120, 255, 0.24);
+    --ball-halo-ring: rgba(90, 140, 250, 0.14);
+    --ball-sheen: rgba(255, 255, 255, 0.98);
+    --ball-inner-hi: rgba(255, 255, 255, 0.98);
+    --ball-inner-lo: rgba(90, 115, 155, 0.3);
+    --ball-drop: rgba(30, 45, 80, 0.32);
+    --ball-badge-ring: #f4f7fc;
   }
 }
 ::selection { background: var(--sel); }
 
-/* 悬浮组合：窗口左上角贴合（窗口尺寸 = 组合尺寸 + 余量，由前端动态上报 resize）。
-   球左条右；条下移 10px 使条中心与球中心对齐 */
+/* 悬浮组合：球左条右，条从球后伸出 12px（负 margin）→ 两者无缝连成一体。
+   球 80px、条 52px，flex 交叉轴居中；窗口尺寸由前端动态上报 resize。 */
 #hud {
   position: absolute; left: 0; top: 0;
-  display: flex; align-items: flex-start; gap: 8px;
+  display: flex; align-items: center; gap: 0;
 }
 
-/* 悬浮球 64px：径向渐变 + 发光环（随主题），中心嵌论坛 logo */
+/* 悬浮球 80px：深色径向渐变 + 蓝色辉光 + 顶部高光，中心嵌论坛 logo */
 #ball {
-  position: relative;
-  width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
-  background: radial-gradient(circle at 35% 28%, var(--ball-g1) 0%, var(--ball-g2) 48%, var(--ball-g3) 100%);
+  position: relative; z-index: 2;
+  width: 80px; height: 80px; border-radius: 50%; flex-shrink: 0;
+  margin-right: -12px;
+  background:
+    radial-gradient(circle at 34% 24%, var(--ball-sheen) 0%, rgba(255, 255, 255, 0) 46%),
+    radial-gradient(circle at 50% 46%, var(--ball-g1) 0%, var(--ball-g2) 52%, var(--ball-g3) 100%);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   box-shadow:
-    inset 0 0 0 2px var(--ball-ring),
-    0 0 14px var(--ball-halo1),
-    0 0 36px var(--ball-halo2),
-    0 6px 18px var(--ball-drop);
-  transition: box-shadow 300ms;
+    inset 0 0 0 1px var(--ball-ring),
+    inset 2px 3px 10px var(--ball-inner-hi),
+    inset -8px -10px 22px var(--ball-inner-lo),
+    0 0 0 5px var(--ball-halo-ring),
+    0 0 26px var(--ball-halo1),
+    0 0 70px var(--ball-halo2),
+    0 10px 26px var(--ball-drop),
+    0 3px 8px var(--ball-drop);
+  transition: box-shadow 260ms ease;
 }
-/* 外圈光环 */
+#ball:hover {
+  --ball-halo1: rgba(95, 160, 255, 0.66);
+  --ball-halo2: rgba(60, 120, 255, 0.32);
+}
+/* 外圈渐变光环：左上亮、右下暗，模拟设计稿的蓝色边缘光 */
 #ball::before {
-  content: ''; position: absolute; inset: -3px; border-radius: 50%;
-  border: 1px solid rgba(150,180,255,.28); pointer-events: none;
+  content: ''; position: absolute; inset: -2px; border-radius: 50%;
+  background: conic-gradient(from 215deg,
+    rgba(165, 205, 255, 0.9) 0deg,
+    rgba(90, 150, 255, 0.34) 80deg,
+    rgba(20, 30, 60, 0) 170deg,
+    rgba(50, 100, 220, 0.3) 250deg,
+    rgba(150, 195, 255, 0.7) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  pointer-events: none;
 }
 /* 未读红点徽标：新帖到达亮起，点击球/条后熄灭 */
 #ball::after {
-  content: ''; position: absolute; right: 1px; bottom: 1px;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #ff5a4d, #d81f10 70%);
-  box-shadow: 0 0 0 2.5px var(--ball-badge-ring), 0 0 8px rgba(255,70,50,.6);
-  opacity: 0; transform: scale(.4); transition: opacity 200ms, transform 200ms;
+  content: ''; position: absolute; right: 2px; bottom: 7px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff6a5c, #d81f10 72%);
+  box-shadow: 0 0 0 2.5px var(--ball-badge-ring), 0 0 10px rgba(255, 70, 50, 0.65);
+  opacity: 0; transform: scale(0.4); transition: opacity 200ms, transform 200ms;
   pointer-events: none;
 }
 #ball.unread::after { opacity: 1; transform: scale(1); }
 /* 连不上：橙色警示圈 */
-#ball.warn { box-shadow: 0 0 0 3px rgba(255,139,61,.85), 0 0 14px rgba(255,139,61,.5), 0 6px 18px rgba(0,0,0,.5); }
-#ball img { width: 38px; height: 38px; pointer-events: none; filter: drop-shadow(0 0 5px rgba(255,70,60,.35)); }
+#ball.warn { box-shadow: 0 0 0 3px rgba(255, 139, 61, 0.85), 0 0 14px rgba(255, 139, 61, 0.5), 0 6px 18px rgba(0, 0, 0, 0.5); }
+#ball img {
+  width: 42px; height: 42px; object-fit: contain; pointer-events: none;
+  filter: drop-shadow(0 1px 6px rgba(255, 80, 70, 0.35));
+}
 
-/* 条容器：宽度随标题 fit-content；进度线与卡片绝对定位，不撑高布局 */
-#barwrap { position: relative; width: fit-content; max-width: 640px; min-width: 0; }
-/* 悬停桥接：填充条与卡片间的 12px 间隙，鼠标经过时 hover 不中断 */
-#barwrap::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 14px; }
+/* 条容器：宽度随标题 fit-content；进度线与卡片绝对定位，不撑高布局。
+   z-index 低于球，球压住条左端形成无缝连接 */
+#barwrap { position: relative; z-index: 1; width: fit-content; max-width: 640px; min-width: 0; }
+/* 悬停桥接：填充条与卡片之间的间隙（条底 66 → 卡片顶 88），鼠标经过时 hover 不中断 */
+#barwrap::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 24px; }
 
-/* 通知条：深色半透明胶囊（对标样板图）；下移 10px 使条中心与球中心对齐 */
+/* 通知条：深色磨砂胶囊（对标设计稿），左端被球覆盖 12px */
 #bar {
-  min-height: 44px;
-  margin-top: 10px;
-  background: var(--bar-bg); backdrop-filter: blur(14px);
-  border-radius: 22px; padding: 0 20px;
+  position: relative;
+  min-height: 52px; height: 52px;
+  background: var(--bar-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid var(--bar-border);
+  border-radius: 26px; padding: 0 20px 0 46px;
   display: flex; align-items: center; gap: 12px;
   width: fit-content; max-width: 640px;
   color: var(--text); cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  transition: background 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+/* 胶囊顶部玻璃高光 */
+#bar::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 45%);
+  pointer-events: none;
+}
+#bar:hover {
+  background: var(--bar-bg-hover);
+  border-color: var(--bar-border-hover);
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(110, 160, 255, 0.08);
 }
 #ticker { min-width: 0; overflow: hidden; }
 #title {
   display: block;
   max-width: 600px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-  font-size: 15px;
+  font-size: 15.5px; font-weight: 500; letter-spacing: 0.15px; line-height: 1.25;
+  color: var(--text);
 }
 /* 新帖到达：标题向下滚动切换（300ms） */
-#ticker.slide #title { animation: slide-down 300ms cubic-bezier(.4,0,.2,1); }
+#ticker.slide #title { animation: slide-down 300ms cubic-bezier(0.4, 0, 0.2, 1); }
 @keyframes slide-down {
   from { transform: translateY(-100%); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
-#time { font-size: 12px; color: var(--text-dim); flex-shrink: 0; }
+/* 时间：前置细竖线分隔（同设计稿） */
+#time {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 12.5px; color: var(--text-dim); flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+#time::before {
+  content: ''; width: 1px; height: 11px; border-radius: 1px;
+  background: currentColor; opacity: 0.35;
+}
 
-/* 进度线：胶囊下方细线，左亮右渐隐（对标样板图）；新帖到达播放一次扫光。
-   条顶 10 + 条高 44 + 8 = 62（绝对定位相对 barwrap，从窗口顶部算） */
+/* 进度线：胶囊下方 6px 细线，左亮右渐隐；新帖到达播放一次扫光。
+   条在 barwrap 内 top 0，高度 52 → 线 top 58 */
 #progress {
-  position: absolute; left: 6px; right: 6px; top: 62px; height: 2px;
-  border-radius: 1px; overflow: hidden;
-  background: linear-gradient(90deg, var(--prog-a) 0%, var(--prog-b) 45%, var(--prog-c) 82%, rgba(0,0,0,0) 100%);
+  position: absolute; left: 14px; right: 14px; top: 58px; height: 2px;
+  border-radius: 2px; overflow: hidden;
+  background: linear-gradient(90deg, var(--prog-a) 0%, var(--prog-b) 42%, var(--prog-c) 78%, rgba(0, 0, 0, 0) 100%);
+  box-shadow: 0 0 8px var(--prog-glow);
 }
 #progress::after {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(160,190,255,.95), transparent);
+  background: linear-gradient(90deg, transparent, rgba(160, 190, 255, 0.95), transparent);
   transform: translateX(-100%);
 }
-#progress.sweep::after { animation: sweep 900ms cubic-bezier(.3,0,.3,1); }
+#progress.sweep::after { animation: sweep 900ms cubic-bezier(0.3, 0, 0.3, 1); }
 @keyframes sweep { to { transform: translateX(100%); } }
 
-/* 展开卡：相对窗口定位（右缘对齐 + 距顶 66px = 条底+间隙），
+/* 展开卡：相对窗口定位（右缘对齐 + 距顶 88px = 球底 80 + 间隙 8），
    不再跟随条宽变化；显示由 JS 加 .show 控制（卡片已移出 barwrap，hover 走 JS） */
 #card {
-  position: absolute; top: 66px; right: 10px;
+  position: absolute; top: 88px; right: 10px;
   min-width: 360px; max-width: calc(100vw - 20px);
-  background: var(--card-bg); backdrop-filter: blur(16px);
-  border-radius: 14px; border: 1px solid var(--line);
+  background: var(--card-bg); backdrop-filter: blur(22px) saturate(1.3);
+  border-radius: 16px; border: 1px solid var(--line);
   padding: 0 18px;
   max-height: 0; opacity: 0; overflow: hidden;
   color: var(--text-card); cursor: default;
   user-select: text;
-  box-shadow: 0 8px 26px rgba(0,0,0,.5);
-  transition: max-height 250ms cubic-bezier(.4,0,.2,1), opacity 250ms cubic-bezier(.4,0,.2,1), padding 250ms cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: max-height 250ms cubic-bezier(0.4, 0, 0.2, 1), opacity 250ms cubic-bezier(0.4, 0, 0.2, 1), padding 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 #card.show { max-height: var(--card-max, 300px); opacity: 1; padding: 14px 18px; }
 #card h2 { font-size: 15px; color: var(--text-title); margin-bottom: 6px; line-height: 1.4; }
@@ -169,11 +244,17 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
 /* 自绘菜单（球功能菜单 + 卡片内容菜单） */
 #menu, #cmenu {
   position: absolute; z-index: 10;
-  background: var(--menu-bg); backdrop-filter: blur(14px);
-  border: 1px solid var(--line); border-radius: 10px;
-  padding: 4px; min-width: 120px;
-  box-shadow: 0 4px 18px rgba(0,0,0,.5);
+  background: var(--menu-bg); backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 5px; min-width: 120px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
-#menu .mi, #cmenu .mi { color: var(--text-card); font-size: 13px; padding: 7px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+#menu .mi, #cmenu .mi { color: var(--text-card); font-size: 13px; padding: 7px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
 #menu .mi:hover, #cmenu .mi:hover { background: var(--hover); }
-#menu .mi.danger:hover { background: rgba(220,60,40,.25); }
+#menu .mi.danger:hover { background: rgba(220, 60, 40, 0.25); }
+
+/* 动效克制：系统开启"减少动态效果"时关闭位移动画 */
+@media (prefers-reduced-motion: reduce) {
+  #ticker.slide #title, #progress.sweep::after { animation: none; }
+  #card, #bar, #ball, #ball::after { transition-duration: 1ms; }
+}

@@ -101,11 +101,22 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 球体随主题 | 球体渐变/光环/徽标描边变量化，浅色主题下球体同步变浅色（此前只有条和卡片变色，球仍是深色不和谐） |
 | 移除 | `start_drag`（系统拖动）与 `base_size` 尺寸守卫（尺寸改由前端管理）；hud 贴窗口左上、条下移 10px 与球中心对齐 |
 
+## 通知条视觉重设计（2026-10-17 第五轮：球条无缝融合）
+
+| 项 | 实现 |
+|---|---|
+| 球条融合 | **球 64→80px，条 44→52px**；条左移 12px（`#ball{margin-right:-12px}` + 条 `z-index` 低于球），球右缘压住条左端 → 消除原 8px 断缝；条 `padding-left:46px`，文字距球右缘约 34px |
+| 球体 | 径向渐变深蓝黑底 + `conic-gradient` 渐变光环（`mask` 裁成 2.5px 边）+ 顶部高光 + 双层蓝色辉光 + 底部投影；未读红点 15px 移到球右下 |
+| 胶囊 | 深色/浅色磨砂玻璃（`backdrop-filter: blur(20px) saturate(1.4)`）+ 1px 边框 + 顶部高光 + hover 提亮；标题 15.5px/500，时间前置细竖线，右侧时间用等宽数字 |
+| 进度线 | 条底 +6px（`top:58px`），左右各内缩 14px，白/蓝灰渐变 + 微光 |
+| 布局联动 | **卡片 top 66→88px**（球底 +8）、`CARD_TOP` 同步；悬停桥接带 14→24px（`#barwrap::after` 与 `collectRects` 扩展同时改）；窗口初始高 84→100 |
+| 注意 | 实测 `cargo build` 的 debug exe **同样嵌入 ui/ 资源**，改前端后必须重新编译再重启（原"改前端不用编译"记录作废） |
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS
 - 配置：`%APPDATA%\cn.weiququ.float\config.json`；日志：同目录 `log.txt`（仅失败时写入）
   （Tauri `app_data_dir` 用 bundle identifier 命名，非 productName）
 - 数据接口：`wqq_notifier.php`（已在 DiscuzX5 README 二开保护清单登记）
-- 悬浮窗 760x700：球 64px + 间隙 8px + 条 max 640px；窗口右缘 6px、垂直居中，
+- 悬浮窗：球 80px（压住条左端 12px）+ 条高 52px/max 640px，窗口高 100（卡片展开时动态加高）；
   拖到屏幕右缘 40px 内自动吸附（右边距 8px）

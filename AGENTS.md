@@ -13,7 +13,7 @@ Tauri 2 + Rust + 纯静态 HTML/CSS/JS（零构建链），单 exe 分发给论�
 
 ## 铁律（改代码前默念）
 
-1. **只改前端（ui/）不用编译**：`frontendDist` 直指 `ui/` 目录，改完重启进程即可；改 Rust 才需要 `cargo build`
+1. **改前端（ui/）也要重新编译**：`cargo build` 的 debug 产物同样把 `ui/` 资源嵌入 exe（实测），改完必须重新 build 再重启进程；`tauri.conf.json` 的窗口初始尺寸同理
 2. **用户数据不能丢**：`config.json` 加字段必须带 `#[serde(default = ...)]`，否则旧配置反序列化失败会静默回落默认值，把用户设置全清掉（已有测试 `old_config_without_theme_still_loads`）
 3. **安全规则**：帖子数据一律 `textContent` 填充，**禁止 innerHTML**（RSS 源内容不可信）
 4. **窗口/穿透三处联动**：改布局后必须同步检查 `collectRects`（占比判定区）、`fitWindow`（窗口尺寸）、hover 链，漏一处就出现"点不到/被裁"
