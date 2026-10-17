@@ -51,6 +51,8 @@ function render(t) {
   $('card-replies').textContent = t.replies;
   $('card-views').textContent = t.views;
   $('card-summary').textContent = t.summary || '（该帖无摘要内容）';
+  // 标题宽度变化 → 重新贴合窗口尺寸（卡片展开中不动，收起后由 mouseleave 缩回）
+  if (!barwrap.matches(':hover')) setTimeout(() => fitWindow(), 80);
 }
 
 // ---------- 事件 ----------
@@ -68,38 +70,46 @@ listen('conn-state', (e) => {
 });
 
 // ---------- 点击 ----------
-// 菜单开着时点球/条：只收起菜单（避免"关菜单"顺手打开网站/帖子的混乱）
+// 菜单开着时点球/条：只收起菜单（避免"关菜单"顺手打开网站/帖子的混乱）；
+// moved=true 表示刚结束一次拖动，忽略其后的 click
 ball.addEventListener('click', () => {
+  if (moved) { moved = false; return; }
   if (!menu.hidden) { closeMenus(); return; }
   ball.classList.remove('unread');
   invoke('open_url', { url: forumBase });
 });
 bar.addEventListener('click', () => {
+  if (moved) { moved = false; return; }
   if (!menu.hidden) { closeMenus(); return; }
   ball.classList.remove('unread');
   if (current) invoke('open_url', { url: current.url });
 });
 
-// ---------- 拖动 ----------
-// 不用 data-tauri-drag-region：注入脚本会在 mousedown 立即 start_dragging（还需 ACL 权限），
-// 且系统拖动循环会被穿透切换打断。这里改为阈值拖动：位移超 4px 才进入系统拖动，
-// 按下期间通过 set_dragging 让后端冻结穿透判定，保证拖动不中断。
-let pending = null; // 按下起点（屏幕坐标）
-const DRAG_THRESHOLD = 4;
+// ---------- 拖动（自绘实现：不用系统 HTCAPTION，避免 Aero Snap 把窗口压变形/拖到边缘弹回） ----------
+// 位移超过 4px 才算拖动（区分单击）；拖动期间 set_dragging 冻结穿透判定
+let dragging = false, moved = false, lastX = 0, lastY = 0, startX = 0, startY = 0;
 
 ball.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
-  pending = { x: e.screenX, y: e.screenY };
+  dragging = true;
+  moved = false;
+  startX = lastX = e.screenX;
+  startY = lastY = e.screenY;
   invoke('set_dragging', { active: true }).catch(() => {});
 });
 window.addEventListener('mousemove', (e) => {
-  if (!pending) return;
-  if (Math.hypot(e.screenX - pending.x, e.screenY - pending.y) < DRAG_THRESHOLD) return;
-  pending = null;
-  invoke('start_drag').catch(() => {});
+  if (!dragging) return;
+  if (!moved && Math.hypot(e.screenX - startX, e.screenY - startY) < 4) return;
+  const dx = e.screenX - lastX;
+  const dy = e.screenY - lastY;
+  lastX = e.screenX;
+  lastY = e.screenY;
+  moved = true;
+  if (dx !== 0 || dy !== 0) invoke('move_window_by', { dx, dy }).catch(() => {});
 });
 function endDrag() {
-  pending = null;
+  if (!dragging) return;
+  dragging = false;
   invoke('set_dragging', { active: false }).catch(() => {});
 }
 window.addEventListener('mouseup', endDrag);
@@ -201,15 +211,57 @@ function reportRects() {
 }
 setInterval(reportRects, 250);
 window.addEventListener('resize', reportRects);
-// hover 展开/收起瞬间立即上报：卡片 bbox 变化不等 250ms 周期
-barwrap.addEventListener('mouseenter', () => {
-  // 卡片高度按窗口可用空间自适应（窗口被 Snap 压矮时也保证内容尽量完整）
-  const top = barwrap.getBoundingClientRect().bottom + 12 + 8;
-  const avail = Math.max(120, Math.min(300, window.innerHeight - top));
+// ---------- 窗口自适应尺寸（窗口贴合"球+条"组合；卡片展开时加高，收起后缩回） ----------
+// 窗口高度只有球高量级 → 可拖到屏幕最顶/最底；浏览器大窗口的边界限制与 Snap 问题随之消失
+const RESIZE_PAD = 20;   // 右/下余量（阴影/光晕）
+const CARD_TOP = 66;     // 卡片顶在窗口内的 y（条顶 10 + 条高 44 + 间隙 12）
+let shrinkTimer = null;
+
+function baseSize() {
+  const r = $('hud').getBoundingClientRect();
+  // 宽度至少容纳卡片（min-width 360 + 左右边距），否则卡片会溢出窗口被裁
+  return {
+    w: Math.max(Math.ceil(r.width) + RESIZE_PAD, 380),
+    h: Math.ceil(r.height) + RESIZE_PAD,
+  };
+}
+function fitWindow(extraH) {
+  const b = baseSize();
+  const h = extraH ? Math.max(b.h, extraH) : b.h;
+  invoke('resize_float', { width: b.w, height: h }).catch(() => {});
+}
+
+// 卡片展开：先撑开窗口再显示卡片（卡片已移出 barwrap，hover 用 JS 管理 + 120ms 宽限跨间隙）
+let closeTimer = null;
+function openCard() {
+  clearTimeout(shrinkTimer);
+  clearTimeout(closeTimer);
+  const cardNeed = (card.scrollHeight || 0) + 28; // scrollHeight 不含 padding，补上下 14*2
+  const need = CARD_TOP + Math.min(cardNeed, 300) + RESIZE_PAD;
+  const b = baseSize();
+  fitWindow(need);
+  const avail = Math.max(120, Math.min(300, Math.max(need, b.h) - CARD_TOP - 8));
   card.style.setProperty('--card-max', avail + 'px');
+  card.classList.add('show');
   reportRects();
+}
+function closeCard() {
+  clearTimeout(closeTimer);
+  card.classList.remove('show');
+  reportRects();
+  clearTimeout(shrinkTimer);
+  shrinkTimer = setTimeout(() => fitWindow(), 280); // 等收起动画结束再缩窗口
+}
+barwrap.addEventListener('mouseenter', openCard);
+barwrap.addEventListener('mouseleave', () => {
+  clearTimeout(closeTimer);
+  closeTimer = setTimeout(closeCard, 120); // 宽限：允许鼠标穿过条与卡片的间隙
 });
-barwrap.addEventListener('mouseleave', reportRects);
+card.addEventListener('mouseenter', () => {
+  clearTimeout(closeTimer);
+  clearTimeout(shrinkTimer);
+});
+card.addEventListener('mouseleave', closeCard);
 
 // ---------- 初始化 ----------
 // 读取配置：论坛地址 + 主题（dark 纯黑 / system 跟随系统）
@@ -226,6 +278,9 @@ listen('settings-changed', applyConfig);
 (async () => {
   await applyConfig();
   reportRects();
+  // 窗口贴合组合尺寸（加载后立即 + 布局稳定后校正一次）
+  fitWindow();
+  setTimeout(() => fitWindow(), 400);
   // 首轮 poll 常早于本页就绪（emit 事件丢失），主动补拉一次
   try {
     const t = await invoke('get_latest_thread');

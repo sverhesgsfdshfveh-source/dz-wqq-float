@@ -18,8 +18,17 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
   --prog-c: rgba(255, 255, 255, 0.1);
   --link: #6ea8ff;
   --sel: rgba(110, 168, 255, 0.35);
+  /* 球体（随主题，避免浅色主题下深球突兀） */
+  --ball-g1: #3b4156;
+  --ball-g2: #1c202c;
+  --ball-g3: #0c0e14;
+  --ball-ring: rgba(132, 162, 255, 0.32);
+  --ball-halo1: rgba(92, 132, 255, 0.42);
+  --ball-halo2: rgba(80, 110, 255, 0.26);
+  --ball-drop: rgba(0, 0, 0, 0.5);
+  --ball-badge-ring: #12141c;
 }
-/* 跟随系统：系统为浅色时用浅色配色（球体保持深色，红鹤 logo 更清晰） */
+/* 跟随系统：系统为浅色时用浅色配色（含球体，保持整体和谐） */
 @media (prefers-color-scheme: light) {
   body.theme-system {
     --bar-bg: rgba(250, 249, 245, 0.93);
@@ -35,31 +44,37 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
     --prog-b: rgba(60, 55, 45, 0.32);
     --prog-c: rgba(60, 55, 45, 0.06);
     --link: #2f6fd0;
+    --ball-g1: #ffffff;
+    --ball-g2: #f4f2ee;
+    --ball-g3: #e3dfd7;
+    --ball-ring: rgba(120, 150, 240, 0.4);
+    --ball-halo1: rgba(120, 150, 240, 0.35);
+    --ball-halo2: rgba(120, 150, 240, 0.2);
+    --ball-drop: rgba(0, 0, 0, 0.18);
+    --ball-badge-ring: #faf9f5;
   }
 }
 ::selection { background: var(--sel); }
 
-/* 悬浮组合：右缘垂直居中（球左条右，同对标图）。hud 高度只由球决定（54px），
-   卡片绝对定位不参与布局 → 展开不挤动条与球 */
+/* 悬浮组合：窗口左上角贴合（窗口尺寸 = 组合尺寸 + 余量，由前端动态上报 resize）。
+   球左条右；条下移 10px 使条中心与球中心对齐 */
 #hud {
-  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  position: absolute; left: 0; top: 0;
   display: flex; align-items: flex-start; gap: 8px;
 }
 
-/* 悬浮球 64px：深色径向渐变 + 蓝紫发光环（对标样板图），中心嵌论坛 logo */
+/* 悬浮球 64px：径向渐变 + 发光环（随主题），中心嵌论坛 logo */
 #ball {
   position: relative;
   width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
-  /* 球中心对齐条中心：条高 44，球 64 → 上移 (64-44)/2 = 10px */
-  margin-top: -10px;
-  background: radial-gradient(circle at 35% 28%, #3b4156 0%, #1c202c 48%, #0c0e14 100%);
+  background: radial-gradient(circle at 35% 28%, var(--ball-g1) 0%, var(--ball-g2) 48%, var(--ball-g3) 100%);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   box-shadow:
-    inset 0 0 0 2px rgba(132,162,255,.32),
-    0 0 14px rgba(92,132,255,.42),
-    0 0 36px rgba(80,110,255,.26),
-    0 6px 18px rgba(0,0,0,.5);
+    inset 0 0 0 2px var(--ball-ring),
+    0 0 14px var(--ball-halo1),
+    0 0 36px var(--ball-halo2),
+    0 6px 18px var(--ball-drop);
   transition: box-shadow 300ms;
 }
 /* 外圈光环 */
@@ -72,7 +87,7 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
   content: ''; position: absolute; right: 1px; bottom: 1px;
   width: 14px; height: 14px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #ff5a4d, #d81f10 70%);
-  box-shadow: 0 0 0 2.5px #12141c, 0 0 8px rgba(255,70,50,.6);
+  box-shadow: 0 0 0 2.5px var(--ball-badge-ring), 0 0 8px rgba(255,70,50,.6);
   opacity: 0; transform: scale(.4); transition: opacity 200ms, transform 200ms;
   pointer-events: none;
 }
@@ -86,9 +101,10 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
 /* 悬停桥接：填充条与卡片间的 12px 间隙，鼠标经过时 hover 不中断 */
 #barwrap::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 14px; }
 
-/* 通知条：深色半透明胶囊（对标样板图） */
+/* 通知条：深色半透明胶囊（对标样板图）；下移 10px 使条中心与球中心对齐 */
 #bar {
   min-height: 44px;
+  margin-top: 10px;
   background: var(--bar-bg); backdrop-filter: blur(14px);
   border-radius: 22px; padding: 0 20px;
   display: flex; align-items: center; gap: 12px;
@@ -110,9 +126,10 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
 }
 #time { font-size: 12px; color: var(--text-dim); flex-shrink: 0; }
 
-/* 进度线：胶囊下方细线，左亮右渐隐（对标样板图）；新帖到达播放一次扫光 */
+/* 进度线：胶囊下方细线，左亮右渐隐（对标样板图）；新帖到达播放一次扫光。
+   条顶 10 + 条高 44 + 8 = 62（绝对定位相对 barwrap，从窗口顶部算） */
 #progress {
-  position: absolute; left: 6px; right: 6px; top: 52px; height: 2px;
+  position: absolute; left: 6px; right: 6px; top: 62px; height: 2px;
   border-radius: 1px; overflow: hidden;
   background: linear-gradient(90deg, var(--prog-a) 0%, var(--prog-b) 45%, var(--prog-c) 82%, rgba(0,0,0,0) 100%);
 }
@@ -124,11 +141,11 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
 #progress.sweep::after { animation: sweep 900ms cubic-bezier(.3,0,.3,1); }
 @keyframes sweep { to { transform: translateX(100%); } }
 
-/* 展开卡：绝对定位于条下方（条与球位置不动），hover 条/卡时缓动展开；
-   内容可选中复制（user-select: text），摘要区像网页一样可框选 */
+/* 展开卡：相对窗口定位（右缘对齐 + 距顶 66px = 条底+间隙），
+   不再跟随条宽变化；显示由 JS 加 .show 控制（卡片已移出 barwrap，hover 走 JS） */
 #card {
-  position: absolute; top: calc(100% + 12px); right: 0;
-  min-width: 360px; max-width: 640px;
+  position: absolute; top: 66px; right: 10px;
+  min-width: 360px; max-width: calc(100vw - 20px);
   background: var(--card-bg); backdrop-filter: blur(16px);
   border-radius: 14px; border: 1px solid var(--line);
   padding: 0 18px;
@@ -138,7 +155,7 @@ body { font: 14px/1.6 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; user
   box-shadow: 0 8px 26px rgba(0,0,0,.5);
   transition: max-height 250ms cubic-bezier(.4,0,.2,1), opacity 250ms cubic-bezier(.4,0,.2,1), padding 250ms cubic-bezier(.4,0,.2,1);
 }
-#barwrap:hover #card { max-height: var(--card-max, 300px); opacity: 1; padding: 14px 18px; }
+#card.show { max-height: var(--card-max, 300px); opacity: 1; padding: 14px 18px; }
 #card h2 { font-size: 15px; color: var(--text-title); margin-bottom: 6px; line-height: 1.4; }
 #card .meta { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
 #card .summary { font-size: 13px; line-height: 1.7; max-height: 180px; overflow: hidden; white-space: pre-wrap; cursor: text; }

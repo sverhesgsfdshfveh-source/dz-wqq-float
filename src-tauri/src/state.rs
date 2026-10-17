@@ -23,8 +23,6 @@ pub struct SharedState {
     pub last_moved: Option<Instant>,
     /// 最近一条新帖：前端加载完成后主动拉取（首轮 poll 常早于页面就绪，事件会丢）
     pub latest: Option<crate::source::Thread>,
-    /// 窗口基准尺寸（setup 时读取）：Aero Snap 会改无边框窗口尺寸，静默后据此恢复
-    pub base_size: Option<(u32, u32)>,
 }
 
 impl SharedState {
@@ -38,7 +36,6 @@ impl SharedState {
             drag_started: None,
             last_moved: None,
             latest: None,
-            base_size: None,
         }
     }
 

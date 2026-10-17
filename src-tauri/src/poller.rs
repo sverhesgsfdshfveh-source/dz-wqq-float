@@ -220,19 +220,18 @@ pub async fn run_cursor_watcher(app: AppHandle, state: Arc<Mutex<crate::state::S
         tokio::time::sleep(Duration::from_millis(10)).await;
         let Some(w) = app.get_webview_window("float") else { continue };
 
-        let (should_settle, base_size) = {
+        let should_settle = {
             let Ok(mut s) = state.lock() else { continue };
-            let due = match s.last_moved {
+            match s.last_moved {
                 Some(t) if t.elapsed() >= Duration::from_millis(400) => {
                     s.last_moved = None; // 每次停止移动只整定一次
                     true
                 }
                 _ => false,
-            };
-            (due, s.base_size)
+            }
         };
         if should_settle {
-            settle_geometry(&w, base_size, &state);
+            settle_geometry(&w);
         }
 
         let (rects, dragging) = state
@@ -291,44 +290,25 @@ fn play_notify() {
     });
 }
 
-/// 移动停止后的窗口几何整定：
-/// 1) 尺寸守卫——HTCAPTION 拖动会触发 Windows Aero Snap 改无边框窗口尺寸
-///    （实测 760x700 被压成 760x443，卡片展开即被窗口底裁掉），恢复基准尺寸；
-/// 2) 位置 clamp 回所在显示器（Snap 后可能半出屏）；
-/// 3) 右缘吸附（距屏幕右缘 <40px 时贴 8px 边距）。
-fn settle_geometry(
-    w: &tauri::WebviewWindow,
-    base_size: Option<(u32, u32)>,
-    state: &Arc<Mutex<crate::state::SharedState>>,
-) {
-    // 1) 尺寸守卫
-    if let (Ok(ws), Some((bw, bh))) = (w.outer_size(), base_size) {
-        if ws.width != bw || ws.height != bh {
-            let _ = w.set_size(tauri::PhysicalSize::new(bw, bh));
-            // set_size 是异步派发：重新标记，400ms 后再整定位置
-            if let Ok(mut s) = state.lock() {
-                s.last_moved = Some(std::time::Instant::now());
-            }
-            return;
-        }
-    }
+/// 移动停止后的窗口整定：位置 clamp 回所在显示器 + 右缘吸附（距右缘 <40px 贴 8px 边距）。
+/// 尺寸不再守卫——窗口尺寸由前端按"球+条(+卡片)"内容动态 resize（resize_float 命令）。
+fn settle_geometry(w: &tauri::WebviewWindow) {
     let (Ok(pos), Ok(Some(mon))) = (w.outer_position(), w.current_monitor()) else {
         return;
     };
     let Ok(ws) = w.outer_size() else { return };
     let mp = mon.position();
     let ms = mon.size();
-    // 2) 位置 clamp
     let min_x = mp.x;
-    let max_x = mp.x + ms.width as i32 - ws.width as i32;
     let min_y = mp.y;
-    let max_y = mp.y + ms.height as i32 - ws.height as i32;
-    let nx = pos.x.clamp(min_x.min(max_x), min_x.max(max_x));
-    let ny = pos.y.clamp(min_y.min(max_y), min_y.max(max_y));
-    // 3) 右缘吸附
+    let max_x = (mp.x + ms.width as i32 - ws.width as i32).max(min_x);
+    let max_y = (mp.y + ms.height as i32 - ws.height as i32).max(min_y);
+    let nx = pos.x.clamp(min_x, max_x);
+    let ny = pos.y.clamp(min_y, max_y);
+    // 右缘吸附（贴右缘时留 8px 边距，与初始位置一致）
     let right_gap = (mp.x + ms.width as i32) - (nx + ws.width as i32);
     let target_x = if (0..40).contains(&right_gap) {
-        mp.x + ms.width as i32 - ws.width as i32 - 8
+        (mp.x + ms.width as i32 - ws.width as i32 - 8).max(min_x)
     } else {
         nx
     };

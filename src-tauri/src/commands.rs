@@ -115,8 +115,7 @@ pub fn get_latest_thread(
     state.lock().ok().and_then(|s| s.latest.clone())
 }
 
-/// 前端报告鼠标按下状态（mousedown→true / mouseup→false）：拖动期间 watcher 冻结穿透切换，
-/// 避免 set_ignore_cursor_events 打断系统拖动循环
+/// 正在拖动标志：拖动中 WndProc 忽略 WM_WINDOWPOSCHANGING 的尺寸变化（双保险）
 #[tauri::command]
 pub fn set_dragging(state: tauri::State<'_, Arc<Mutex<SharedState>>>, active: bool) {
     if let Ok(mut s) = state.lock() {
@@ -124,14 +123,59 @@ pub fn set_dragging(state: tauri::State<'_, Arc<Mutex<SharedState>>>, active: bo
     }
 }
 
-/// 进入系统拖动循环（替代 data-tauri-drag-region：注入脚本在 mousedown 立即触发且依赖 ACL 权限，
-/// 无法与单击区分；这里由前端位移阈值触发）
+/// 自定义拖动：按屏幕坐标增量移动窗口。
+/// 不用系统 HTCAPTION 拖动——那会触发 Windows Aero Snap（拖到屏幕边缘把窗口压成别的尺寸，
+/// 且拖到最顶/最底会"弹回"）；自绘拖动可精确贴到屏幕任意边缘。
 #[tauri::command]
-pub fn start_drag(app: AppHandle) -> Result<(), String> {
+pub fn move_window_by(app: AppHandle, dx: i32, dy: i32) -> Result<(), String> {
     let w = app
         .get_webview_window("float")
         .ok_or_else(|| "float window not found".to_string())?;
-    w.start_dragging().map_err(|e| e.to_string())
+    let pos = w.outer_position().map_err(|e| e.to_string())?;
+    let size = w.outer_size().map_err(|e| e.to_string())?;
+    let mut nx = pos.x + dx;
+    let mut ny = pos.y + dy;
+    // clamp 到所在显示器：允许贴边（这是本方案的目的），但不允许整窗出屏
+    if let Ok(Some(m)) = w.current_monitor() {
+        let mp = m.position();
+        let ms = m.size();
+        let max_x = (mp.x + ms.width as i32 - size.width as i32).max(mp.x);
+        let max_y = (mp.y + ms.height as i32 - size.height as i32).max(mp.y);
+        nx = nx.clamp(mp.x, max_x);
+        ny = ny.clamp(mp.y, max_y);
+    }
+    w.set_position(tauri::PhysicalPosition::new(nx, ny))
+        .map_err(|e| e.to_string())
+}
+
+/// 悬浮窗自适应尺寸（物理像素）：窗口贴合"球+条"组合，卡片展开时前端加高。
+/// 若扩展后超出所在显示器右下缘，向左/上回缩保证组合可见。
+#[tauri::command]
+pub fn resize_float(app: AppHandle, width: u32, height: u32) -> Result<(), String> {
+    let w = app
+        .get_webview_window("float")
+        .ok_or_else(|| "float window not found".to_string())?;
+    let (width, height) = (width.clamp(120, 1400), height.clamp(48, 900));
+    w.set_size(tauri::PhysicalSize::new(width, height))
+        .map_err(|e| e.to_string())?;
+    if let (Ok(pos), Ok(Some(m))) = (w.outer_position(), w.current_monitor()) {
+        let mp = m.position();
+        let ms = m.size();
+        let mut nx = pos.x;
+        let mut ny = pos.y;
+        if nx + width as i32 > mp.x + ms.width as i32 {
+            nx = mp.x + ms.width as i32 - width as i32;
+        }
+        if ny + height as i32 > mp.y + ms.height as i32 {
+            ny = mp.y + ms.height as i32 - height as i32;
+        }
+        nx = nx.max(mp.x);
+        ny = ny.max(mp.y);
+        if nx != pos.x || ny != pos.y {
+            let _ = w.set_position(tauri::PhysicalPosition::new(nx, ny));
+        }
+    }
+    Ok(())
 }
 
 /// 打开/显示设置窗（托盘菜单与球右键菜单共用）

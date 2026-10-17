@@ -38,11 +38,7 @@ fn main() {
             // 初始设为鼠标穿透（方案一'），等前端上报可见矩形后由光标轮询接管
             if let Some(w) = app.get_webview_window("float") {
                 let mons = w.available_monitors().unwrap_or_default();
-                let ws = w.outer_size().unwrap_or(tauri::PhysicalSize::new(760, 700));
-                // 记录基准尺寸：Aero Snap（HTCAPTION 拖动副作用）会改窗口尺寸，静默后据此恢复
-                if let Ok(mut s) = st.lock() {
-                    s.base_size = Some((ws.width, ws.height));
-                }
+                let ws = w.outer_size().unwrap_or(tauri::PhysicalSize::new(760, 84));
                 let restored = {
                     let s = st.lock().expect("state lock");
                     s.cfg.window_pos.filter(|p| {
@@ -91,8 +87,7 @@ fn main() {
                             let y = mp.y + (ms.height as i32 - ws.height as i32) / 2;
                             let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
                         }
-                    }
-                }
+                    }                }
                 let _ = w.set_ignore_cursor_events(true);
             }
 
@@ -218,7 +213,8 @@ fn main() {
             commands::report_ui_rects,
             commands::get_latest_thread,
             commands::set_dragging,
-            commands::start_drag,
+            commands::move_window_by,
+            commands::resize_float,
             commands::open_settings
         ])
         .run(tauri::generate_context!())
