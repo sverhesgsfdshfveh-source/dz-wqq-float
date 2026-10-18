@@ -35,8 +35,9 @@ wqq-float/
     │   ├── source.rs    # ThreadSource：WqqApiSource（JSON 秒级）| RssSource（DZ 通用兜底）
     │   ├── config.rs    # Config{forum_base,source,poll_interval_secs,window_pos,theme} + ThemeKind/SourceKind
     │   ├── state.rs     # SharedState{watermark,ui_rects,drag_started,last_moved,latest,...}
-    │   ├── commands.rs  # 全部 Tauri command（见下）
-    │   └── log.rs       # 轻量日志（仅失败时写 %APPDATA%\cn.weiququ.float\log.txt）
+│   ├── commands.rs  # 全部 Tauri command（见下）
+│   ├── update.rs    # 自动升级：GitHub Release 检查 → 下载 → PowerShell 替换并重启
+│   └── log.rs       # 轻量日志（仅失败时写 %APPDATA%\cn.weiququ.float\log.txt）
     ├── capabilities/default.json        # ACL 权限
     └── tauri.conf.json  # 窗口初始 760x84（前端 fitWindow 会立刻校正）
 ```
@@ -61,7 +62,8 @@ wqq-float/
 `open_url(url)` · `quit_app()` · `get_settings()` · `save_settings(forumBase,source,pollIntervalSecs,theme)` ·
 `report_ui_rects(rects)` · `get_latest_thread()` · `set_dragging(active)` · `move_window_by(dx,dy)` ·
 `resize_float(width,height)` · `open_settings()` · `resize_settings(height)`（设置窗高度自适应） ·
-`hide_settings()`（设置窗保存后收起，hide 保活）
+`hide_settings()`（设置窗保存后收起，hide 保活） ·
+`check_update()` · `install_update(assetUrl,expectedSize)` · `get_version()`（自动升级，见机制 5）
 
 ## 核心机制（改这几处前必读）
 
@@ -97,6 +99,25 @@ Windows 透明窗口的"像素 alpha 自动穿透"**实测证伪**（spike 记�
 `poller.rs::play_notify()` 以 rodio+minimp3 独立线程播放——不走 WebView2（其 autoplay 需
 `additionalBrowserArgs` 放开，而该参数会**污染之后创建的所有 WebView2 窗口**，见踩坑 #3）。
 只在"运行期新帖"播放：`new-threads.initial=true`（首轮存量）与前端补拉不播。
+
+### 5. 自动升级（GitHub Release 分发）
+
+- **分发仓库只放产物**：`sverhesgsfdshfveh-source/dz-wqq-float`（公开，源码不上传）。
+  SSH 别名 `github.com-sverhesgsfdshfveh`（key `~/.ssh/id_ed25519_sverhesgsfdshfveh`）；
+  gh 账号 `sverhesgsfdshfveh-source`（`gh auth switch --user sverhesgsfdshfveh-source`）。
+  本地发布仓库 = `src-tauri/target/release/`（独立 git，`.gitignore` 白名单只跟踪
+  `wqq-float.exe` + `README.md`，不碰构建中间产物）
+- 检查：`update.rs::check_update` 调 GitHub API `releases/latest`，tag（`v0.1.0`）与
+  `CARGO_PKG_VERSION` 比较（`parse_ver`/`is_newer`，忽略 `-` 预发布后缀）
+- 安装：`install_update` 前置校验 ①`asset_url` 必须是本仓库 release 下载前缀（防被改成任意 URL）
+  ②exe 所在目录可写（探测文件——`C:\Program Files` 里会明确报错引导手动更新）→ 下载到
+  `%TEMP%\wqq-float-new.exe`（流式 + `update-progress` 事件，256KB 节流）→ 校验体积
+  （== API size 且 >1MB）→ 用 **`-EncodedCommand`**（UTF-16LE base64，免脚本文件残留、
+  免中文路径编码坑）启动 PowerShell：等本进程退出 → `旧→.old`、`新→原位`（失败回滚）→
+  重启新 exe → 本进程走 `quit_now` 退出（顺延 IPC 回调退出的踩坑）
+- 发新版流程：改 `Cargo.toml` version → `cargo build --release` → 覆盖发布仓库的 exe →
+  `git commit && git push` → `gh release create vX.Y.Z wqq-float.exe ...`（同一 tag 不可复用）
+- 注意：测试自动升级时要先杀掉所有 wqq-float 进程（单实例插件会把第二个实例顶掉）
 
 ## 透明窗镂空 + 流动光边（跨项目参考实现指南）
 
@@ -248,7 +269,8 @@ cd target/release && powershell -NoProfile -Command "Compress-Archive -Path wqq-
 
 ## 未竟事项（接手候选）
 
-1. 设置页「检查更新」仍指向论坛首页 —— 发布帖上线后改 `ui/settings.js` 的 URL
+1. ~~设置页「检查更新」指向论坛首页~~ → 已完成：第十一轮接入 GitHub Release 自动升级
+   （检查 → 下载 → 替换 → 重启，见核心机制 5）
 2. 提示音没有开关（设置页可加"静音"选项；音效版权上注意其来自 ZCode 资源）
 3. NSIS 安装版暂缓（tauri-cli 装不上，见 .superpowers ledger Task 2）；便携单 exe 是主推产物
 4. 托盘/exe 图标未换（球体已换）；高 DPI（125%/150%）与多显示器未实测（代码已按 dpr/clamp 处理）

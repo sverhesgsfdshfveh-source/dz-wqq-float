@@ -169,6 +169,16 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 保存后自动收起 | 点「保存」→ 保存成功并提示 → 400ms 后 `hide_settings()` 收起窗口（hide 保活，与 X 按钮同机制；销毁后重建会白屏）。保存失败不收起，保留错误提示 |
 | 初值兜底 | main.rs / commands.rs 两处 inner_size 初值 420x620（页面加载后立即被自适应覆盖） |
 
+## 发布分发与自动升级（2026-10-18 第十一轮）
+
+| 项 | 实现 |
+|---|---|
+| 发布仓库 | `github.com/sverhesgsfdshfveh-source/dz-wqq-float`（公开，**只放 `wqq-float.exe` + `README.md`**，源码不上传）；本地发布仓库 = `src-tauri/target/release/` 独立 git（.gitignore 白名单，不碰构建中间产物）；SSH 别名 `github.com-sverhesgsfdshfveh`，gh 账号 `sverhesgsfdshfveh-source` |
+| 自动升级（Rust `update.rs`） | `check_update`：GitHub API `releases/latest` → tag 与 `CARGO_PKG_VERSION` 比较（忽略 `-` 后缀）；`install_update`：校验 ①asset_url 限于本仓库 releases 前缀 ②exe 目录可写 → 流式下载到 `%TEMP%`（`update-progress` 事件 256KB 节流）→ 体积校验（== API size 且 >1MB）→ `-EncodedCommand` PowerShell 等进程退出后"旧→.old、新→原位"（失败回滚）并重启 → 本进程 `quit_now` 退出 |
+| 设置页 UI | 「版本更新」行：检查状态 / 新版本号+体积 / 下载进度 / 立即更新按钮；about 行版本号取 `get_version`（不再硬编码）；点「保存」400ms 后自动关窗 |
+| 单测 | 新增 6 个（版本解析/比较、base64 已知向量、UTF-16LE EncodedCommand、PS 引号转义、替换脚本内容），合计 27/27 全绿 |
+| 首发 | Release `v0.1.0`（asset `wqq-float.exe`），README 面向用户只介绍功能与用法 |
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS

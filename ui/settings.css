@@ -14,6 +14,12 @@ input[type=checkbox] { width: 15px; height: 15px; }
 .row { margin-top: 14px; }
 .status { margin-top: 14px; font-size: 12px; color: #8A8272; }
 #via.warn { color: #D96B2B; }
+/* 版本更新行：左侧状态文字 + 右侧按钮组 */
+.upd-row { display: flex; align-items: center; gap: 10px; min-height: 38px; }
+.upd-status { flex: 1; min-width: 0; font-size: 12px; color: #8A8272; line-height: 1.5; }
+.upd-status.ok { color: #2E7D32; }
+.upd-status.err { color: #C62828; }
+.upd-btns { display: flex; gap: 8px; flex-shrink: 0; }
 .btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 button {
   padding: 8px 18px; border-radius: 8px; border: 1px solid #DDD5C7;

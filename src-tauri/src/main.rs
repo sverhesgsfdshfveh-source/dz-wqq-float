@@ -8,6 +8,7 @@ mod state;
 mod poller;
 mod log;
 mod commands;
+mod update;
 
 fn main() {
     tauri::Builder::default()
@@ -229,7 +230,10 @@ fn main() {
             commands::set_window_region,
             commands::open_settings,
             commands::resize_settings,
-            commands::hide_settings
+            commands::hide_settings,
+            update::check_update,
+            update::install_update,
+            update::get_version
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

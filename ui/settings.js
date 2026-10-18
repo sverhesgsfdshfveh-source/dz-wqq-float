@@ -75,9 +75,75 @@ $('autostart').addEventListener('change', async (e) => {
   }
 });
 
-$('check-update').addEventListener('click', () => {
-  invoke('open_url', { url: 'https://bbs.weiququ.cn/' }).catch((e) => show('打开失败: ' + e, 'err'));
+// ---------- 自动升级 ----------
+// check_update：查 GitHub Release 最新版；install_update：下载并替换自身后自动重启
+let updateInfo = null;
+
+$('check-update').addEventListener('click', async () => {
+  const btn = $('check-update'), st = $('upd-status');
+  btn.disabled = true; btn.textContent = '检查中…';
+  st.className = 'upd-status'; st.textContent = '';
+  try {
+    const info = await invoke('check_update');
+    updateInfo = info;
+    if (info.has_update) {
+      st.className = 'upd-status ok';
+      st.textContent = `发现新版本 v${info.latest}（${(info.size / 1048576).toFixed(1)} MB）`;
+      $('do-update').hidden = false;
+    } else {
+      st.textContent = `已是最新版本 v${info.current}`;
+      $('do-update').hidden = true;
+    }
+  } catch (e) {
+    st.className = 'upd-status err';
+    st.textContent = `检查失败：${e}`;
+    $('do-update').hidden = true;
+  } finally {
+    btn.disabled = false; btn.textContent = '检查更新';
+  }
 });
+
+$('do-update').addEventListener('click', async () => {
+  if (!updateInfo) return;
+  const st = $('upd-status');
+  $('do-update').disabled = true;
+  $('check-update').disabled = true;
+  st.className = 'upd-status';
+  st.textContent = '开始下载…';
+  try {
+    await invoke('install_update', {
+      assetUrl: updateInfo.asset_url,
+      expectedSize: updateInfo.size,
+    });
+    // 成功的正常路径：Rust 侧已启动替换脚本，本进程即将退出并重启
+    st.textContent = '更新就绪，应用即将重启…';
+  } catch (e) {
+    st.className = 'upd-status err';
+    st.textContent = `更新失败：${e}`;
+    $('do-update').disabled = false;
+    $('check-update').disabled = false;
+  }
+});
+
+listen('update-progress', (e) => {
+  const p = e.payload || {};
+  const mb = (n) => (n / 1048576).toFixed(1);
+  if (p.total > 0) {
+    const pct = Math.min(100, Math.round((p.downloaded / p.total) * 100));
+    $('upd-status').textContent = `下载中 ${pct}%（${mb(p.downloaded)}/${mb(p.total)} MB）`;
+  } else {
+    $('upd-status').textContent = `已下载 ${mb(p.downloaded)} MB`;
+  }
+});
+
+// about 行版本号动态填充（升级后不会显示旧版本）
+invoke('get_version')
+  .then((v) => {
+    document.querySelector('.about').textContent = `wqq-float v${v} · 微趣趣线报网桌面通知`;
+  })
+  .catch(() => {});
+
+load();
 
 // 窗口高度自适应：按 body 实测内容高度（逻辑像素）上报 Rust 侧 resize。
 // 用 body 而不是 documentElement：内容比视口矮时 documentElement.scrollHeight 会
