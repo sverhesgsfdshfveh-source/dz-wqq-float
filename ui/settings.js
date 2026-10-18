@@ -53,6 +53,9 @@ $('save').addEventListener('click', async () => {
       theme: $('theme').value,
     });
     show('已保存（若更换了论坛/数据源，将重新全量拉取）', 'ok');
+    // 保存成功后自动收起设置窗（留 400ms 让"已保存"提示可见）。
+    // 走 hide_settings（hide 保活）而非 close：销毁后重建会白屏，见 main.rs
+    setTimeout(() => invoke('hide_settings').catch(() => {}), 400);
   } catch (e) {
     show('保存失败: ' + e, 'err');
   }
@@ -75,5 +78,14 @@ $('autostart').addEventListener('change', async (e) => {
 $('check-update').addEventListener('click', () => {
   invoke('open_url', { url: 'https://bbs.weiququ.cn/' }).catch((e) => show('打开失败: ' + e, 'err'));
 });
+
+// 窗口高度自适应：按 body 实测内容高度（逻辑像素）上报 Rust 侧 resize。
+// 用 body 而不是 documentElement：内容比视口矮时 documentElement.scrollHeight 会
+// 返回视口高度（永远测不出"缩小"）。失败静默（保持初始高度可用）。
+function fitHeight() {
+  const h = Math.ceil(document.body.scrollHeight) + 2;
+  invoke('resize_settings', { height: h }).catch(() => {});
+}
+window.addEventListener('load', () => requestAnimationFrame(fitHeight));
 
 load();

@@ -60,7 +60,8 @@ wqq-float/
 
 `open_url(url)` · `quit_app()` · `get_settings()` · `save_settings(forumBase,source,pollIntervalSecs,theme)` ·
 `report_ui_rects(rects)` · `get_latest_thread()` · `set_dragging(active)` · `move_window_by(dx,dy)` ·
-`resize_float(width,height)` · `open_settings()`
+`resize_float(width,height)` · `open_settings()` · `resize_settings(height)`（设置窗高度自适应） ·
+`hide_settings()`（设置窗保存后收起，hide 保活）
 
 ## 核心机制（改这几处前必读）
 

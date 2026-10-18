@@ -161,6 +161,14 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 - 光边流动采样（1.3s 间隔持续变化）：球左缘 89e4ff→ebccfe→c1b9ff
 - 卡片背景实测 #fcfdfe/#f7f9fd（浅色主题正确）、文字深色可读
 
+## 设置窗体验（2026-10-18 第十轮）
+
+| 项 | 实现 |
+|---|---|
+| 高度自适应 | 设置窗固定 420x410 装不下内容（WebView2 实测内容高 574）出现滚动条；headless Edge 测量 520 与真实渲染差 54px，靠估算不可靠 → 新增 `resize_settings(height)` 命令；`settings.js` 加载后按 `document.body.scrollHeight + 2`（逻辑像素）上报自适应。**用 body 而非 documentElement**：内容比视口矮时后者的 scrollHeight 返回视口高度，永远测不出"缩小"。实测收敛到 436x615（内容区 576），无滚动条；以后改 settings.html/css 不用再动窗口尺寸常量 |
+| 保存后自动收起 | 点「保存」→ 保存成功并提示 → 400ms 后 `hide_settings()` 收起窗口（hide 保活，与 X 按钮同机制；销毁后重建会白屏）。保存失败不收起，保留错误提示 |
+| 初值兜底 | main.rs / commands.rs 两处 inner_size 初值 420x620（页面加载后立即被自适应覆盖） |
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS

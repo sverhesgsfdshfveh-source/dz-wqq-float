@@ -193,7 +193,8 @@ pub fn open_settings_window(app: &AppHandle) -> Result<(), String> {
             WebviewUrl::App("settings.html".into()),
         )
         .title("wqq-float 设置")
-        .inner_size(420.0, 410.0)
+        // 初值兜底（同 main.rs 预创建）；页面加载后按时测内容高度自适应
+        .inner_size(420.0, 620.0)
         .resizable(false)
         .build()
         .map_err(|e| e.to_string())?;
@@ -204,6 +205,30 @@ pub fn open_settings_window(app: &AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn open_settings(app: AppHandle) -> Result<(), String> {
     open_settings_window(&app)
+}
+
+/// 设置窗保存成功后自动收起。hide 而非 close/destroy：
+/// 设置窗销毁后运行中重建会白屏（WebView2 动态创建异常），保活是既有约定
+/// （main.rs 里 X 按钮的 CloseRequested 同样只 hide）
+#[tauri::command]
+pub fn hide_settings(app: AppHandle) -> Result<(), String> {
+    let w = app
+        .get_webview_window("settings")
+        .ok_or_else(|| "settings window not found".to_string())?;
+    w.hide().map_err(|e| e.to_string())
+}
+
+/// 设置窗高度自适应：settings.js 在页面加载后按内容实测高度（逻辑像素）上报。
+/// 固定高度靠估算（headless 测量与实际 WebView2 渲染有差）会漏出滚动条，
+/// 改为内容驱动后，以后改 settings.html/css 也不用再动窗口尺寸常量。
+#[tauri::command]
+pub fn resize_settings(app: AppHandle, height: f64) -> Result<(), String> {
+    let w = app
+        .get_webview_window("settings")
+        .ok_or_else(|| "settings window not found".to_string())?;
+    let h = height.clamp(320.0, 1600.0);
+    w.set_size(tauri::LogicalSize::new(420.0, h))
+        .map_err(|e| e.to_string())
 }
 
 // ---- 窗口形状裁剪（Windows region 镂空） ----

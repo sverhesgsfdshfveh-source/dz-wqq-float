@@ -162,7 +162,8 @@ fn main() {
                     WebviewUrl::App("settings.html".into()),
                 )
                 .title("wqq-float 设置")
-                .inner_size(420.0, 410.0)
+                // 初值取宽裕高度兜底；页面加载后按时测内容高度自适应（resize_settings）
+                .inner_size(420.0, 620.0)
                 .resizable(false)
                 .visible(false)
                 .skip_taskbar(true)
@@ -226,7 +227,9 @@ fn main() {
             commands::move_window_by,
             commands::resize_float,
             commands::set_window_region,
-            commands::open_settings
+            commands::open_settings,
+            commands::resize_settings,
+            commands::hide_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
