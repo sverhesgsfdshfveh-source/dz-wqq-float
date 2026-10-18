@@ -20,6 +20,9 @@ const REPO: &str = "sverhesgsfdshfveh-source/dz-wqq-float";
 /// 本仓库 release 附件下载地址前缀（install_update 只接受来自这里的 URL）
 const ASSET_PREFIX: &str =
     "https://github.com/sverhesgsfdshfveh-source/dz-wqq-float/releases/download/";
+/// 下载加速代理（自建；国内直连 GitHub 慢时走它）。用法：前缀直接拼接原始 URL。
+/// 代理失败会自动回退直连；置空字符串则始终直连。
+const GH_PROXY: &str = "https://gh.mintaoke.dpdns.org/";
 /// 下载地址（手动兜底）——前端展示用
 pub const RELEASES_PAGE: &str = "https://github.com/sverhesgsfdshfveh-source/dz-wqq-float/releases/latest";
 /// 当前版本（编译期注入；Settings 页展示 + 版本比较基准）
@@ -119,6 +122,57 @@ fn replace_script(new_exe: &Path, old_exe: &Path, pid: u32) -> String {
     )
 }
 
+/// 下载源候选：加速代理优先、直连兜底（顺序即尝试顺序）
+fn download_urls(asset_url: &str) -> Vec<String> {
+    let mut v = Vec::new();
+    if !GH_PROXY.is_empty() {
+        v.push(format!("{GH_PROXY}{asset_url}"));
+    }
+    v.push(asset_url.to_string());
+    v
+}
+
+/// 下载到指定路径：流式写文件 + `update-progress` 进度事件（256KB 节流）；
+/// expected_size>0 时校验体积，过小（<1MB）视为异常；成功返回字节数
+async fn download_to(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    url: &str,
+    path: &Path,
+    expected_size: u64,
+) -> Result<u64, String> {
+    let mut resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("连接失败（{e}）"))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let total = resp.content_length().unwrap_or(expected_size);
+    let mut file = std::fs::File::create(path).map_err(|e| format!("创建临时文件失败（{e}）"))?;
+    let mut got: u64 = 0;
+    let mut last_emit: u64 = 0;
+    while let Some(chunk) = resp.chunk().await.map_err(|e| format!("下载中断（{e}）"))? {
+        file.write_all(&chunk).map_err(|e| format!("写入失败（{e}）"))?;
+        got += chunk.len() as u64;
+        if got - last_emit > 256 * 1024 || got == total {
+            last_emit = got;
+            let _ = app.emit(
+                "update-progress",
+                serde_json::json!({ "downloaded": got, "total": total }),
+            );
+        }
+    }
+    if expected_size > 0 && got != expected_size {
+        return Err(format!("下载不完整（{got}/{expected_size} 字节）"));
+    }
+    if got < 1024 * 1024 {
+        return Err("文件体积异常（过小）".into());
+    }
+    Ok(got)
+}
+
 /// 检查更新：GitHub 最新 Release vs 当前版本
 #[tauri::command]
 pub async fn check_update() -> Result<UpdateInfo, String> {
@@ -193,41 +247,27 @@ pub async fn install_update(
         .user_agent(concat!("wqq-float/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| e.to_string())?;
-    let mut resp = client
-        .get(&asset_url)
-        .send()
-        .await
-        .map_err(|e| format!("连接失败（{e}）"))?;
-    if !resp.status().is_success() {
-        return Err(format!("下载失败：HTTP {}", resp.status()));
-    }
-    let total = resp.content_length().unwrap_or(expected_size);
     let new_exe = std::env::temp_dir().join("wqq-float-new.exe");
-    {
-        let mut file = std::fs::File::create(&new_exe)
-            .map_err(|e| format!("创建临时文件失败（{e}）"))?;
-        let mut got: u64 = 0;
-        let mut last_emit: u64 = 0;
-        while let Some(chunk) = resp.chunk().await.map_err(|e| format!("下载中断（{e}）"))? {
-            file.write_all(&chunk).map_err(|e| format!("写入失败（{e}）"))?;
-            got += chunk.len() as u64;
-            // 事件节流：每 256KB（或收尾）推一次进度
-            if got - last_emit > 256 * 1024 || got == total {
-                last_emit = got;
-                let _ = app.emit(
-                    "update-progress",
-                    serde_json::json!({ "downloaded": got, "total": total }),
-                );
+    // 加速代理优先、直连兜底；任一源成功即继续（重试时发 retry 事件让前端提示）
+    let mut last_err = String::new();
+    let mut ok = false;
+    for (i, url) in download_urls(&asset_url).iter().enumerate() {
+        if i > 0 {
+            let _ = app.emit("update-progress", serde_json::json!({ "retry": true }));
+        }
+        match download_to(&app, &client, url, &new_exe, expected_size).await {
+            Ok(_) => {
+                ok = true;
+                break;
+            }
+            Err(e) => {
+                last_err = e;
+                let _ = std::fs::remove_file(&new_exe);
             }
         }
-        if expected_size > 0 && got != expected_size {
-            let _ = std::fs::remove_file(&new_exe);
-            return Err(format!("下载不完整（{got}/{expected_size} 字节），请重试"));
-        }
-        if got < 1024 * 1024 {
-            let _ = std::fs::remove_file(&new_exe);
-            return Err("下载文件异常（体积过小），请到发布页手动下载".into());
-        }
+    }
+    if !ok {
+        return Err(format!("下载失败（{last_err}），可到发布页手动下载"));
     }
 
     // 启动替换脚本（独立进程，随本进程退出后接管）
@@ -324,5 +364,14 @@ mod tests {
         assert!(s.contains(r"C:\App\wqq-float.exe"));
         assert!(s.contains("Move-Item") && s.contains("Start-Process"));
         assert!(s.contains("rollback") || s.contains("$old.old"));
+    }
+
+    #[test]
+    fn download_sources_proxy_first_then_direct() {
+        let direct = "https://github.com/sverhesgsfdshfveh-source/dz-wqq-float/releases/download/v1.0.0/wqq-float.exe";
+        let urls = download_urls(direct);
+        assert_eq!(urls.len(), 2);
+        assert!(urls[0].starts_with(GH_PROXY) && urls[0].ends_with(direct));
+        assert_eq!(urls[1], direct);
     }
 }

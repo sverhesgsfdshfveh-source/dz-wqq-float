@@ -1,6 +1,6 @@
 [package]
 name = "wqq-float"
-version = "0.1.0"
+version = "0.1.1"
 description = "微趣趣线报网桌面悬浮通知"
 edition = "2021"
 

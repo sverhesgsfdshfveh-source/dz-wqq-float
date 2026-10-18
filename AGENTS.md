@@ -102,11 +102,15 @@ Windows 透明窗口的"像素 alpha 自动穿透"**实测证伪**（spike 记�
 
 ### 5. 自动升级（GitHub Release 分发）
 
-- **分发仓库只放产物**：`sverhesgsfdshfveh-source/dz-wqq-float`（公开，源码不上传）。
+- **仓库即分发**：`sverhesgsfdshfveh-source/dz-wqq-float`（公开，含源码 + CI，老板已同意公开）。
   SSH 别名 `github.com-sverhesgsfdshfveh`（key `~/.ssh/id_ed25519_sverhesgsfdshfveh`）；
-  gh 账号 `sverhesgsfdshfveh-source`（`gh auth switch --user sverhesgsfdshfveh-source`）。
-  本地发布仓库 = `src-tauri/target/release/`（独立 git，`.gitignore` 白名单只跟踪
-  `wqq-float.exe` + `README.md`，不碰构建中间产物）
+  gh 账号 `sverhesgsfdshfveh-source`（`gh auth switch --user sverhesgsfdshfveh-source`，
+  gh 命令都加 `--repo sverhesgsfdshfveh-source/dz-wqq-float`——remote 是 SSH 别名，gh 推断不出）
+- **CI 构建（本地不必再编 release）**：`.github/workflows/release.yml` — push tag `v*` →
+  校验 tag 与 `src-tauri/Cargo.toml` 版本一致（不一致直接失败，客户端比较依赖两者对齐）→
+  `cargo test --locked` → `cargo build --release --locked` →
+  `softprops/action-gh-release` 创建 Release 并上传 `wqq-float.exe`
+  （**asset 名固定为 wqq-float.exe**，客户端按此名查找）；`workflow_dispatch` 手动触发只构建存 artifact
 - 检查：`update.rs::check_update` 调 GitHub API `releases/latest`，tag（`v0.1.0`）与
   `CARGO_PKG_VERSION` 比较（`parse_ver`/`is_newer`，忽略 `-` 预发布后缀）
 - 安装：`install_update` 前置校验 ①`asset_url` 必须是本仓库 release 下载前缀（防被改成任意 URL）
@@ -115,9 +119,10 @@ Windows 透明窗口的"像素 alpha 自动穿透"**实测证伪**（spike 记�
   （== API size 且 >1MB）→ 用 **`-EncodedCommand`**（UTF-16LE base64，免脚本文件残留、
   免中文路径编码坑）启动 PowerShell：等本进程退出 → `旧→.old`、`新→原位`（失败回滚）→
   重启新 exe → 本进程走 `quit_now` 退出（顺延 IPC 回调退出的踩坑）
-- 发新版流程：改 `Cargo.toml` version → `cargo build --release` → 覆盖发布仓库的 exe →
-  `git commit && git push` → `gh release create vX.Y.Z wqq-float.exe ...`（同一 tag 不可复用）
-- 注意：测试自动升级时要先杀掉所有 wqq-float 进程（单实例插件会把第二个实例顶掉）
+- 发新版流程：改 `src-tauri/Cargo.toml` version → commit → `git tag vX.Y.Z && git push origin vX.Y.Z`
+  → 等 CI 出 Release（同一 tag 不可复用；tag 与 version 必须一致，否则 CI 直接失败）
+- 注意：测试自动升级时要先杀掉所有 wqq-float 进程（单实例插件会把第二个实例顶掉）；
+  `gh run watch <id> --repo ...` 看构建进度
 
 ## 透明窗镂空 + 流动光边（跨项目参考实现指南）
 

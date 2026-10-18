@@ -127,6 +127,11 @@ $('do-update').addEventListener('click', async () => {
 
 listen('update-progress', (e) => {
   const p = e.payload || {};
+  if (p.retry) {
+    // 加速代理失败 → Rust 侧自动回退直连重试
+    $('upd-status').textContent = '加速通道失败，切换直连重试…';
+    return;
+  }
   const mb = (n) => (n / 1048576).toFixed(1);
   if (p.total > 0) {
     const pct = Math.min(100, Math.round((p.downloaded / p.total) * 100));
