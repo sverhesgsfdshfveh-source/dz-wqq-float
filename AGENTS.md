@@ -113,6 +113,9 @@ Windows 透明窗口的"像素 alpha 自动穿透"**实测证伪**（spike 记�
   （**asset 名固定为 wqq-float.exe**，客户端按此名查找）；`workflow_dispatch` 手动触发只构建存 artifact
 - 检查：`update.rs::check_update` 调 GitHub API `releases/latest`，tag（`v0.1.0`）与
   `CARGO_PKG_VERSION` 比较（`parse_ver`/`is_newer`，忽略 `-` 预发布后缀）
+- **下载走加速代理**：`GH_PROXY = https://gh.mintaoke.dpdns.org/`（自建，用法 = 前缀拼原始 URL）；
+  `download_urls()` 代理优先、直连兜底，失败自动切换并 emit `retry` 事件（前端提示）。
+  置空字符串即纯直连（实测国内代理 233KB/s vs 直连 192KB/s，且直连不通的用户是刚需）
 - 安装：`install_update` 前置校验 ①`asset_url` 必须是本仓库 release 下载前缀（防被改成任意 URL）
   ②exe 所在目录可写（探测文件——`C:\Program Files` 里会明确报错引导手动更新）→ 下载到
   `%TEMP%\wqq-float-new.exe`（流式 + `update-progress` 事件，256KB 节流）→ 校验体积

@@ -179,6 +179,15 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 单测 | 新增 6 个（版本解析/比较、base64 已知向量、UTF-16LE EncodedCommand、PS 引号转义、替换脚本内容），合计 27/27 全绿 |
 | 首发 | Release `v0.1.0`（asset `wqq-float.exe`），README 面向用户只介绍功能与用法 |
 
+## 更新下载加速 + 首次端到端升级验证（2026-10-18 第十二轮）
+
+| 项 | 结果 |
+|---|---|
+| **端到端升级验证** | 0.0.9 测试 exe（临时改版本号 debug 编译）放在 `%TEMP%` 独立目录实测：设置页「检查更新」→ 发现 v0.1.0（11.8MB）→ 下载（进度 % 正常）→ 自动退出 → PowerShell 替换（旧→.old、新→原位）→ 自动重启。**替换后 exe 的 sha256 与 CI 产物完全一致**（`22acab4e…`），无 .old 残留、临时文件已清理 ✓ |
+| 下载加速 | 国内直连 GitHub 慢（实测 192 KB/s）：`install_update` 改为 `GH_PROXY = https://gh.mintaoke.dpdns.org/` + 原始 URL 前缀拼接、**代理优先、失败回退直连**（代理实测 233 KB/s）；回退时 emit `retry` 事件，前端提示「加速通道失败，切换直连重试…」→ 版本 0.1.1 |
+| CI 全自动发版 | tag `v0.1.0` / `v0.1.1` 各触发一次全自动流水线（校验 tag==version → cargo test → build --release → 创建 Release 上传 exe），全绿；**发版不再需要本地 `cargo build --release`** |
+| 代理使用前提 | 检查更新的 API 走直连（实测可达）；下载默认走代理 —— 若未来代理失效，`GH_PROXY` 置空即可纯直连（代码里一行） |
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS
