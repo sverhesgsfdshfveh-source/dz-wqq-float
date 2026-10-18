@@ -97,6 +97,72 @@ Windows 透明窗口的"像素 alpha 自动穿透"**实测证伪**（spike 记�
 `additionalBrowserArgs` 放开，而该参数会**污染之后创建的所有 WebView2 窗口**，见踩坑 #3）。
 只在"运行期新帖"播放：`new-threads.initial=true`（首轮存量）与前端补拉不播。
 
+## 透明窗镂空 + 流动光边（跨项目参考实现指南）
+
+> 本节是 wqq-float 六轮实测沉淀的通用方案，其它 Tauri/WebView2 项目要做
+> "异形镂空窗口 + 流动光边"直接照此路线，可跳过全部弯路。
+
+### 需求与最终方案
+
+需求：①桌面悬窗背景真镂空（白色桌面下看不到矩形窗体轮廓）②UI 圆角边缘平滑无锯齿
+③鼠标交互完整（hover/拖动/点击）④整体轮廓有流动彩色光边。
+
+**最终方案：`SetWindowRgn` 形状裁剪 + 前端形状外扩 2 物理像素 + 不透明 UI 背景。**
+
+### 各路线实测裁定（勿走回头路）
+
+| 路线 | 结果 | 弃用/采用原因 |
+|---|---|---|
+| 什么都不做 | ✗ | Win10 上 tao 为 `transparent:true` 窗口自动开 DWM blur-behind，透明区带灰雾，白桌面下整个矩形轮廓清晰可见（镂空失效的根源） |
+| `SetWindowRgn` 直裁 | △ | 鼠标交互完整、无灰雾；但 region 是 **1bit 几何位掩码，天生无抗锯齿**（微软文档明确），边缘阶梯锯齿 |
+| colorkey（`LWA_COLORKEY`） | ✗ | 视觉镂空最平滑（CSS 抗锯齿全保留），**但其像素级 hit-test 与 WebView2 的 mousemove 流冲突**：hover 全灭、拖不动（离散 click 反而能通，极具迷惑性）。另外穿透切换/启动时会丢 `WS_EX_LAYERED` 需反复补设。**需要完整鼠标交互的窗口一律别用** |
+| accent blur / acrylic（SetWindowCompositionAttribute） | ✗ | 色雾更重 |
+| per-pixel alpha（DirectComposition / `WS_EX_NOREDIRECTIONBITMAP`） | 未走 | 理论正解，但 wry 的 HWND 宿主不走此路，Tauri 未暴露 `no_redirection_bitmap`，自行集成 WebView2 COM 代价大 |
+
+### region 方案的锯齿消除（核心技巧）
+
+region 边缘是硬切，消除思路是**让锯齿像素藏在 UI 不透明区域内**：
+
+1. 前端把每个 UI 形状的 `getBoundingClientRect()` **各方向外扩 2 物理像素**后上报
+   （`app.js collectShapes()` → `set_window_region` 命令取并集 `SetWindowRgn`）。
+   region 边缘比 CSS 形状大 2px，锯齿带落在 CSS 绘制范围内被覆盖，外露边缘走 CSS 抗锯齿。
+2. 环带必须有内容：region 外扩后，CSS 形状边界之外、region 之内的一圈若没有任何
+   绘制，WebView 透明区会显黑。用贴边光环（如 `#ball::before` inset:-2px 的 conic 边光）
+   覆盖，且 **conic 全程保持非零 alpha**（最暗段 0.1+），否则暗段露出黑边。
+3. 更彻底的遮盖：整体轮廓的流动光环（见下）本身就盖在 region 边缘上，锯齿不可见。
+
+### 流动光边（圆形/圆角矩形通用跑马灯）
+
+- 结构：独立 `#glow-ring` 层（absolute，`inset:-5px`，`border-radius` 取外轮廓圆角+5px），
+  放在 UI 元素后面（z-index 最低），包裹整体外轮廓而非单个元素。
+- **挖空方式用「内层伪元素盖底色」，不要用 `mask-composite: exclude`**——WebView2 上
+  exclude 写法部分区域不渲染（右侧缺口）。实现：`#glow-ring` 整面 `conic-gradient`
+  多彩分段 + `animation: rotate Ns linear infinite`；`::after` `inset:2.5px` 同圆角盖
+  `--ring-cover` 纯色把中部挡住，只留 2.5px 环。
+- `--ring-cover` 随主题取近底色（浅色主题近白、深色近黑），环内非 UI 空隙看起来仍近"空"。
+- 注意：cover 层是实底色，被覆盖的环内空隙不再透出桌面——region 内的这些小空隙
+  （如条上下的余量）用近底色视觉上无感，属可接受折中。
+
+### 必须遵守的配套约束
+
+1. **UI 背景一律不透明**：region + 透明 WebView2 下，**CSS 半透明背景像素整体丢失**
+   （rgba 0.95 的卡片直接显示桌面，极难排查）。半透明质感用"不透明预混合色"模拟；
+   `backdrop-filter` 对不透明背景无意义，一并移除。
+2. **穿透切换会重置窗口样式**：`set_ignore_cursor_events` 经 tao `apply_diff` 重写
+   `GWL_EXSTYLE`（切可交互时连 `WS_EX_LAYERED` 都会被移除）。region 不受影响
+   （归系统持有），但 colorkey/LWA 类属性每次切换后都要补设。
+3. **JS 上报函数里的变量必须先声明**：`collectShapes`/`collectRects` 里引用未定义变量
+   会让整个上报函数抛异常 → `ui_rects` 停更 → 全窗穿透、所有交互静默失效
+   （症状与 colorkey 冲突一模一样，先查 JS 控制台再怀疑 Win32）。
+4. **诊断方法**：把窗口临时移到纯白桌面区域，对比窗口内外像素——很多"灰雾/黑块"
+   其实是桌面壁纸和图标透过镂空正常显示，别误判。
+
+### 涉及代码位置
+
+- `ui/app.js`：`collectShapes()`（形状外扩上报）、`updateWindowRegion()`（sig 去重）
+- `src-tauri/src/commands.rs`：`set_window_region`（GDI region 并集 + SetWindowRgn）
+- `ui/index.html`：`#glow-ring` 层；`ui/app.css`：光环动画与不透明背景变量
+
 ## 踩坑速查（血泪台账，新坑请追加）
 
 | # | 坑 | 症状 | 解法 |
@@ -116,6 +182,10 @@ Windows 透明窗口的"像素 alpha 自动穿透"**实测证伪**（spike 记�
 | 13 | 透明窗残留矩形描边 | Win10 DWM 阴影在 layered 窗表现为描边 | `tauri.conf.json` 窗口 `"shadow": false` |
 | 14 | `reqwest` 默认 native-tls | 部分网络环境下 schannel 吊销检查失败（`CRYPT_E_REVOCATION_OFFLINE`）连不上论坛 | 已用 `rustls-tls`（Cargo.toml），别改回默认 feature |
 | 15 | 设置窗被遮挡时截图 | `ImageGrab` 截屏幕会看到下层窗口，误判"白屏" | `SetWindowPos(hwnd,-1,...)` 置顶截图后再 `-2` 恢复 |
+| 16 | colorkey 的像素级 hit-test | hover 无反应、拖不动（click 却正常） | colorkey 与 WebView2 mousemove 冲突，交互窗改用 region 方案（见"透明窗镂空"一节） |
+| 17 | CSS 半透明背景像素丢失 | region 镂空下卡片/条区域直接透出桌面 | region+透明 WebView2 丢弃半透明 alpha；UI 背景一律不透明预混合色 |
+| 18 | 上报函数引用未定义变量 | 全窗穿透、交互静默全失效 | `collectShapes`/`collectRects` 抛异常 → rects 停更；先查 JS 控制台再怀疑 Win32 |
+| 19 | `mask-composite: exclude` 挖空 | 流动光环部分区域不渲染（右侧缺口） | WebView2 兼容差；改「内层伪元素盖底色挖空」 |
 
 ## 开发流程
 
