@@ -35,6 +35,26 @@ fn main() {
             app.manage(st.clone());
             app.manage(commands::CfgPath(config_path.clone()));
 
+            // 首次运行默认开启开机自启。仅正式版执行：debug 版带控制台窗口，
+            // 注册进自启会开机弹黑窗。仅首次：启用成功后打标记落盘，
+            // 用户之后手动关掉不会再被强制打开（失败时不打标记，下次启动重试）
+            #[cfg(not(debug_assertions))]
+            {
+                let need_default_autostart = {
+                    let s = st.lock().expect("state lock");
+                    !s.cfg.autostart_default_applied
+                };
+                if need_default_autostart {
+                    use tauri_plugin_autostart::ManagerExt;
+                    if app.autolaunch().enable().is_ok() {
+                        if let Ok(mut s) = st.lock() {
+                            s.cfg.autostart_default_applied = true;
+                            let _ = config::save(&config_path, &s.cfg);
+                        }
+                    }
+                }
+            }
+
             // 悬浮窗位置：存档有效则恢复（clamp 回可视区），否则主屏右缘垂直居中；
             // 初始设为鼠标穿透（方案一'），等前端上报可见矩形后由光标轮询接管
             if let Some(w) = app.get_webview_window("float") {

@@ -188,6 +188,15 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | CI 全自动发版 | tag `v0.1.0` / `v0.1.1` 各触发一次全自动流水线（校验 tag==version → cargo test → build --release → 创建 Release 上传 exe），全绿；**发版不再需要本地 `cargo build --release`** |
 | 代理使用前提 | 检查更新的 API 走直连（实测可达）；下载默认走代理 —— 若未来代理失效，`GH_PROXY` 置空即可纯直连（代码里一行） |
 
+## 默认开机自启（2026-10-18 第十三轮，v0.1.2）
+
+- 需求：新用户默认勾选「开机自启」
+- 实现：`Config.autostart_default_applied`（`#[serde(default)]` 兼容旧配置）——首次运行且未标记时
+  调 `app.autolaunch().enable()`，**成功后**打标记落盘；用户之后手动关掉不会再被强制打开；
+  失败不标记（下次启动重试）。**仅 release 构建执行**（`#[cfg(not(debug_assertions))]`——
+  debug 版带控制台窗口，注册进自启会开机弹黑窗）
+- 26/28 无新增测试（config 字段默认值断言并入既有旧配置兼容测试）
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS

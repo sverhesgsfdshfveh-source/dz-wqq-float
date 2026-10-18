@@ -260,7 +260,8 @@ cd target/release && powershell -NoProfile -Command "Compress-Archive -Path wqq-
 ## 配置与数据
 
 - 配置：`%APPDATA%\cn.weiququ.float\config.json`
-  `{forum_base, source:"wqq"|"rss", poll_interval_secs(3~300), window_pos:[x,y], theme:"dark"|"system"}`
+  `{forum_base, source:"wqq"|"rss", poll_interval_secs(3~300), window_pos:[x,y], theme:"dark"|"system",
+  autostart_default_applied}`（最后一项：首次运行默认开启自启的标记，之后不再强制）
 - 日志：同目录 `log.txt`（仅轮询失败时写入；零失败 = 文件不存在 = 正常）
 - 轮询：默认 5s；连败 3 次退避 30s；wqq 连败 6 次自动切 RSS 兜底
 - 接口契约（服务端 `DiscuzX5/wqq_notifier.php`）：

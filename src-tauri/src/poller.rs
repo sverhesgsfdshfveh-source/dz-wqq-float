@@ -155,8 +155,8 @@ pub async fn run_poller(
                 forum_base: base.clone(),
                 source: cfg_source.clone(),
                 poll_interval_secs: interval,
-                window_pos: None,
-                theme: crate::config::ThemeKind::Dark,
+                // 其余字段与本次选源无关，统一取默认值（新增配置字段时无需改这里）
+                ..crate::config::default_config()
             },
             failures,
         );

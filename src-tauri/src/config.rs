@@ -36,6 +36,10 @@ pub struct Config {
     /// serde default 保证旧配置（无此字段）仍能反序列化，不会因缺字段回落默认配置丢设置
     #[serde(default = "default_theme")]
     pub theme: ThemeKind,
+    /// 是否已执行过"首次运行默认开启开机自启"。
+    /// 仅首次默认开启：用户手动关掉后不再强制打开（serde default 兼容旧配置）
+    #[serde(default)]
+    pub autostart_default_applied: bool,
 }
 
 pub fn default_config() -> Config {
@@ -45,6 +49,7 @@ pub fn default_config() -> Config {
         poll_interval_secs: 5,
         window_pos: None,
         theme: ThemeKind::Dark,
+        autostart_default_applied: false,
     }
 }
 
@@ -103,6 +108,7 @@ mod tests {
         assert_eq!(c.poll_interval_secs, 30);
         assert_eq!(c.window_pos, Some((10, 20)));
         assert_eq!(c.theme, ThemeKind::Dark);
+        assert!(!c.autostart_default_applied);
         let _ = std::fs::remove_file(&p);
     }
 
