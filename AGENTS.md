@@ -122,8 +122,11 @@ Windows 透明窗口的"像素 alpha 自动穿透"**实测证伪**（spike 记�
   （== API size 且 >1MB）→ 用 **`-EncodedCommand`**（UTF-16LE base64，免脚本文件残留、
   免中文路径编码坑）启动 PowerShell：等本进程退出 → `旧→.old`、`新→原位`（失败回滚）→
   重启新 exe → 本进程走 `quit_now` 退出（顺延 IPC 回调退出的踩坑）
-- 发新版流程：改 `src-tauri/Cargo.toml` version → commit → `git tag vX.Y.Z && git push origin vX.Y.Z`
-  → 等 CI 出 Release（同一 tag 不可复用；tag 与 version 必须一致，否则 CI 直接失败）
+- 发新版流程：改 `src-tauri/Cargo.toml` version → **`cargo update -p wqq-float`
+  （同步 Cargo.lock；漏了这步 CI 的 `--locked` 会直接失败——踩过一次，v0.1.2 删 tag 重发）** →
+  commit → `git tag vX.Y.Z && git push origin vX.Y.Z` → 等 CI 出 Release
+  （tag 与 version 必须一致否则 CI 失败；失败且未产出 Release 时可用
+  `git push origin :refs/tags/vX.Y.Z` 删 tag 重发，已发过的不行）
 - 注意：测试自动升级时要先杀掉所有 wqq-float 进程（单实例插件会把第二个实例顶掉）；
   `gh run watch <id> --repo ...` 看构建进度
 
