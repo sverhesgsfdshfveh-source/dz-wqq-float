@@ -1,0 +1,59 @@
+name: Release
+
+# 打 tag（v*，与 src-tauri/Cargo.toml 版本一致）即自动构建 + 创建 Release 上传 exe；
+# 也可在 Actions 页手动触发（仅构建 + 存 artifact，不发布）
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 校验 tag 与 Cargo.toml 版本一致
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -e
+          tag="${GITHUB_REF_NAME#v}"
+          ver=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+          echo "tag=$tag  cargo=$ver"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::tag 与 Cargo.toml 版本不一致（客户端自动更新按两者比较，必须一致）"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 单元测试
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: 构建 release
+        working-directory: src-tauri
+        run: cargo build --release --locked
+
+      - name: 存 artifact（手动触发时供下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: wqq-float-exe
+          path: src-tauri/target/release/wqq-float.exe
+          if-no-files-found: error
+
+      - name: 创建 Release 并上传 exe
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: src-tauri/target/release/wqq-float.exe
+          generate_release_notes: true
+          fail_on_unmatched_files: true
