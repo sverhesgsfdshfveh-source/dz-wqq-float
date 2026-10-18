@@ -82,14 +82,21 @@ body {
   display: flex; align-items: center; gap: 0;
 }
 
-/* 流动光环：包裹球+胶囊整体外轮廓（圆角矩形环，非只在球上转）。
-   conic 多彩渐变旋转；环体用「整面 conic + 内层伪元素盖底色挖空」实现
-   （mask-composite: exclude 在 WebView2 上部分区域不渲染导致缺口，弃用）。
-   环宽 2.5px，内外缘由 border-radius 自然抗锯齿，顺带盖住 region 锯齿 */
-#glow-ring {
-  position: absolute; inset: -5px; z-index: 0;
-  border-radius: 45px;
-  background: conic-gradient(from 0deg,
+/* ===== 整体轮廓流动光边（球环 + 胶囊环，沿「球+胶囊」组合轮廓）=====
+   实现要点（勿走回头路）：
+   - 几何静止、只滚动 conic 起始角（@property <angle> 插值）。早期版本用
+     transform: rotate 转整个元素：矩形几何跟着转，环带斜着扫过球/条上下的
+     空隙，出现"窗口中间旋转的多彩形状"。圆的元素转无妨，扁胶囊绝对不行。
+   - 环体仍用「整面 conic + 内层盖底色挖空」（mask-composite: exclude 在 WebView2
+     部分区域不渲染，弃用）。两段环的中部都被不透明的球/胶囊盖住，不外露。
+   - conic 全程保持非零 alpha（最暗 0.35）：球环兼作 region 外扩环带的覆盖层，
+     任何角度都不能露出 WebView 透明区（显黑） */
+@property --ring-a {
+  syntax: '<angle>'; initial-value: 0deg; inherits: false;
+}
+#glow-ball, #glow-bar {
+  position: absolute; z-index: 0; pointer-events: none;
+  background: conic-gradient(from var(--ring-a, 0deg),
     rgba(0, 242, 254, 0.95) 0%,
     rgba(79, 172, 254, 0.8) 12%,
     rgba(120, 190, 255, 0.35) 26%,
@@ -98,18 +105,20 @@ body {
     rgba(240, 147, 251, 0.85) 68%,
     rgba(120, 190, 255, 0.4) 80%,
     rgba(0, 242, 254, 0.95) 100%);
-  animation: ring-rotate 4s linear infinite;
-  pointer-events: none;
+  animation: ring-flow 4s linear infinite;
 }
-/* 内层挖空：盖住 conic 中部，只留 2.5px 环；底色用 --ring-cover（跟随主题，
-   深色主题近球底色、浅色主题近桌面白，使环内区域看起来是"穿透"的） */
-#glow-ring::after {
-  content: ''; position: absolute; inset: 2.5px; border-radius: 42.5px;
+@keyframes ring-flow { to { --ring-a: 360deg; } }
+/* 球环：外径 85px（球 80 + 两侧各 2.5px 光边），同心于球；中部被球体盖住只剩边光 */
+#glow-ball { left: -2.5px; top: -2.5px; width: 85px; height: 85px; border-radius: 50%; }
+/* 胶囊环：贴合胶囊外缘 +2.5px（左端藏进球后，右上/右下与球环在轮廓交角处对接）；
+   内层伪元素盖 --ring-cover 挖出 2.5px 环，其区域与胶囊本体等形、被条完全盖住 */
+#glow-bar { left: 37.5px; top: 11.5px; right: -2.5px; height: 57px; border-radius: 28.5px; }
+#glow-bar::after {
+  content: ''; position: absolute; inset: 2.5px; border-radius: 26px;
   background: var(--ring-cover);
 }
-@keyframes ring-rotate { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  #glow-ring { animation: none; }
+  #glow-ball, #glow-bar { animation: none; }
 }
 
 /* 悬浮球 80px：深色径向渐变 + 蓝色辉光 + 顶部高光，中心嵌论坛 logo */
@@ -132,20 +141,8 @@ body {
   --ball-halo1: rgba(95, 160, 255, 0.66);
   --ball-halo2: rgba(60, 120, 255, 0.32);
 }
-/* 球缘静态柔光：紧贴球身一圈（不旋转，整体旋转光环由 #glow-ring 负责）。
-   全程非零 alpha 覆盖 region 外扩环带，避免 WebView 透明区显黑 */
-#ball::before {
-  content: ''; position: absolute; inset: -2px; border-radius: 50%;
-  background: conic-gradient(from 215deg,
-    rgba(165, 205, 255, 0.85) 0deg,
-    rgba(90, 150, 255, 0.42) 80deg,
-    rgba(70, 115, 210, 0.16) 170deg,
-    rgba(60, 110, 215, 0.2) 250deg,
-    rgba(150, 195, 255, 0.65) 360deg);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  pointer-events: none;
-}
+/* 球缘细节交给 #glow-ball 的流动彩环 + 球的 1px inset 亮边（--ball-ring）。
+   历史上有过一圈 "inset:-2px 静态蓝白 conic 柔光"，与彩环同区叠加会把流动色冲成白色，已移除 */
 /* 连不上：橙色警示圈 */
 #ball.warn { box-shadow: inset 0 0 0 3px rgba(255, 139, 61, 0.9); }
 #ball img {
@@ -208,12 +205,13 @@ body {
 }
 
 /* 进度线：胶囊下方 6px 细线，左亮右渐隐；新帖到达播放一次扫光。
-   条在 barwrap 内 top 0，高度 52 → 线 top 58 */
+   条在 barwrap 内 top 0，高度 52 → 线 top 58。
+   辉光（box-shadow）兼作 region 外扩带（进度线单独上报形状）的覆盖绘制 */
 #progress {
   position: absolute; left: 26px; right: 14px; top: 58px; height: 2px;
   border-radius: 2px; overflow: hidden;
   background: linear-gradient(90deg, var(--prog-a) 0%, var(--prog-b) 42%, var(--prog-c) 78%, rgba(0, 0, 0, 0) 100%);
-  
+  box-shadow: 0 0 8px 1px var(--prog-glow);
 }
 #progress::after {
   content: ''; position: absolute; inset: 0;
@@ -263,5 +261,5 @@ body {
 /* 动效克制：系统开启"减少动态效果"时关闭位移动画 */
 @media (prefers-reduced-motion: reduce) {
   #ticker.slide #title, #progress.sweep::after { animation: none; }
-  #card, #bar, #ball, #ball::after { transition-duration: 1ms; }
+  #card, #bar, #ball { transition-duration: 1ms; }
 }

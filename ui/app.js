@@ -209,10 +209,12 @@ function collectRects() {
   return rects;
 }
 // ---------- 窗口形状上报（Windows region 镂空） ----------
-// 用 SetWindowRgn 把窗口裁成「球圆 + 胶囊圆角 + 进度线 + 卡片/菜单」并集，
-// 消除矩形窗体轮廓（透明区域直接透出桌面）。region 是 1bit 裁剪、边缘有锯齿，
-// 因此每个形状**各方向外扩 2 物理像素**：锯齿带落在 CSS 形状内部
-// （UI 元素的可视边缘由 CSS 自身抗锯齿绘制，region 边缘藏在元素内侧不外露）。
+// region 直接贴合真实 UI 轮廓：球（椭圆）+ 胶囊（圆角矩形）+ 进度线（细矩形）+ 卡片/菜单，
+// 条上下与球外区域**完全镂空**。历史版本用「hud 整块外接圆角矩形 +5px」：
+// 条上下的 14px 空隙落在 region 内，只能用 --ring-cover 近底色伪填充；
+// 且旧流动光环沿此矩形转（transform 旋转），会在空隙里扫出"中间旋转的多彩形状"。
+// region 是 1bit 裁剪、边缘有锯齿，故每个形状**各方向外扩 2 物理像素**：
+// 锯齿带落在 CSS 绘制内部（球缘由 #glow-ball 彩环覆盖、胶囊缘由 #glow-bar 彩环覆盖）。
 function collectShapes() {
   const dpr = window.devicePixelRatio || 1;
   const shapes = [];
@@ -229,7 +231,10 @@ function collectShapes() {
     if (radius !== undefined) item.push(radius * dpr);
     shapes.push(item);
   };
-  push(1, hud.getBoundingClientRect(), 40, 5); // 整体外轮廓（球+胶囊+5px 流动光环）：圆角矩形，圆角取球半径
+  push(0, ball.getBoundingClientRect(), undefined, 2);      // 球（椭圆）
+  push(1, barwrap.getBoundingClientRect(), 26, 2);          // 胶囊
+  // 进度线（条下 6px）：必须单独纳入，否则被裁；外扩 5px 容纳其辉光绘制带
+  push(2, progress.getBoundingClientRect(), undefined, 5);
   // 卡片：展开时纳入 region；收起动画期间高度极小自动跳过
   const cr = card.getBoundingClientRect();
   if (cr.height > 4) push(1, cr, 16);

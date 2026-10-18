@@ -8,8 +8,9 @@
 <body>
   <div id="hud">
     <!-- 拖动走自定义阈值逻辑（app.js），不用 data-tauri-drag-region：后者在 mousedown 立即 start_dragging，会吞掉单击 -->
-    <!-- 流动光环：包裹球+胶囊整体外轮廓（圆角矩形环），conic 渐变旋转 -->
-    <div id="glow-ring" aria-hidden="true"></div>
+    <!-- 流动光边：球环 + 胶囊环两段，沿「球+胶囊」组合轮廓；几何静止，只滚动 conic 起始角 -->
+    <div id="glow-ball" aria-hidden="true"></div>
+    <div id="glow-bar" aria-hidden="true"></div>
     <div id="ball" title="拖动移动 · 单击打开论坛 · 右键菜单">
       <img src="assets/logo.png" alt="" draggable="false">
     </div>

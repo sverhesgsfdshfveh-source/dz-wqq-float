@@ -133,6 +133,21 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 | 详情卡 | 移除"浏览"显示（新帖浏览量小无意义），保留作者/版块/时间/回复 |
 | JS 坑 | `collectShapes` 引用了未定义的 `hud` 变量 → `reportRects` 整个抛异常 → `ui_rects` 停更 → 全窗穿透、交互全失效（症状与 colorkey 的 mousemove 冲突一模一样，极具迷惑性）；已把 `hud` 加入顶部 const 声明 |
 
+## 流动光边贴合整体轮廓（2026-10-18 第八轮）
+
+| 现象 | 根因 | 修复 |
+|---|---|---|
+| **窗口中间出现"旋转的多彩形状"**（球/条上下的空隙里扫出彩块） | `#glow-ring` 用 `transform: rotate` 旋转整个元素：转的是矩形几何、不只是颜色分布——外接矩形环（宽 400+ × 高 90）斜过来时环带扫过条上下的 14px 空隙；而该空隙在 region（hud 外接矩形 +5px）内，故可见 | 光边改「`@property --ring-a` 角度动画」：几何静止、只滚 conic 起始角；删除外接矩形环 |
+| 光边不贴 UI（悬在条上方 14px）、"底部 `#glow-ring` 层太宽" | 环按 hud 外接矩形画（圆角 45px），不是"球+胶囊"的真实轮廓 | 拆成两段：`#glow-ball`（85px 圆盘，被 80px 球盖住只剩 2.5px 边光）+ `#glow-bar`（胶囊外扩 2.5px 圆角矩形，`::after` 盖 `--ring-cover` 挖空） |
+| （附带）条上下有近底色伪填充"假镂空" | region 用 hud 外接矩形时，空隙在 region 内却无 UI，只能靠 cover 层伪填充 | `collectShapes` 改报「球（kind 0 椭圆）∪ 胶囊（r26 圆角矩形）∪ 进度线（矩形）」，空隙真镂空、直接透出桌面 |
+| （附带）进度线会被新 region 裁掉 | 进度线在胶囊下方 6px，不在"球∪胶囊"形状内 | 单独纳入 region（外扩 5px 容纳辉光）；`#progress` 加 `box-shadow` 辉光覆盖外扩带（顺带用上闲置的 `--prog-glow`） |
+| （附带）球缘彩环发白 | `#ball::before` 的 2.5px 静态蓝白 conic 与彩环同区叠加，把流动色冲淡 | 移除；球缘光圈由 `#glow-ball` 独占（+球自身 1px inset 亮边） |
+
+验证（WebView2 155.0.4283.60，浅色主题实测）：
+- 同一取样点每隔 1.3s 取色持续变化 → `@property` 角度动画生效、光边在流动
+- 窗口内 **0 个纯黑像素**（region 区域无露底/无黑边）；条上下直接透出桌面内容（真镂空）
+- 球上 `WS_EX_TRANSPARENT=0`（穿透判定正常）；hover 胶囊 → 卡片展开、region 跟随、无裁切
+
 ## 常量备忘
 
 - 轮询默认 5 秒（3~300 可配）；连败 3 次退避 30 秒；wqq 连败 6 次自动切 RSS
@@ -141,4 +156,7 @@ cd src-tauri/target/release && zip wqq-float-0.1.0-win64.zip wqq-float.exe
 - 数据接口：`wqq_notifier.php`（已在 DiscuzX5 README 二开保护清单登记）
 - 悬浮窗：球 80px（压住胶囊左端 40px，胶囊左半圆完全藏于球后）+ 条高 52px/max 640px，窗口高 100（卡片展开时动态加高）；
   拖到屏幕右缘 40px 内自动吸附（右边距 8px）
+- 流动光边（第八轮）：球环 85px 圆盘（r42.5，露出 2.5px）+ 胶囊环 = 胶囊 +2.5px
+  （`left:37.5px; top:11.5px; right:-2.5px; height:57px; r28.5`）；`@property --ring-a` 4s 线性流转。
+  region 形状 = 球（椭圆）∪ 胶囊（r26）∪ 进度线（外扩 2px；进度线外扩 5px）
 - **colorkey 约束：UI 内禁止出现纯黑 RGB(0,0,0) 像素**（当前主题最深 ~RGB(11,13,19)，安全）；改主题色时注意别引入 #000

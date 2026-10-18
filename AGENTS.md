@@ -16,7 +16,7 @@ Tauri 2 + Rust + 纯静态 HTML/CSS/JS（零构建链），单 exe 分发给论�
 1. **改前端（ui/）也要重新编译**：`cargo build` 的 debug 产物同样把 `ui/` 资源嵌入 exe（实测），改完必须重新 build 再重启进程；`tauri.conf.json` 的窗口初始尺寸同理
 2. **用户数据不能丢**：`config.json` 加字段必须带 `#[serde(default = ...)]`，否则旧配置反序列化失败会静默回落默认值，把用户设置全清掉（已有测试 `old_config_without_theme_still_loads`）
 3. **安全规则**：帖子数据一律 `textContent` 填充，**禁止 innerHTML**（RSS 源内容不可信）
-4. **窗口/穿透三处联动**：改布局后必须同步检查 `collectRects`（占比判定区）、`fitWindow`（窗口尺寸）、hover 链，漏一处就出现"点不到/被裁"
+4. **窗口/穿透四处联动**：改布局后必须同步检查 `collectRects`（穿透判定区）、`collectShapes`（region 裁剪形状，新增可见元素必须纳入）、`fitWindow`（窗口尺寸）、hover 链，漏一处就出现"点不到/被裁/被裁掉一截"
 5. **改完即 commit**：本地 git 是唯一事实源；发布清单记录根因（新踩的坑追加进去）
 6. **测试基线**：改 Rust 必须 `cargo test`（当前 21/21 全绿）才能 commit
 
@@ -119,29 +119,40 @@ Windows 透明窗口的"像素 alpha 自动穿透"**实测证伪**（spike 记�
 | accent blur / acrylic（SetWindowCompositionAttribute） | ✗ | 色雾更重 |
 | per-pixel alpha（DirectComposition / `WS_EX_NOREDIRECTIONBITMAP`） | 未走 | 理论正解，但 wry 的 HWND 宿主不走此路，Tauri 未暴露 `no_redirection_bitmap`，自行集成 WebView2 COM 代价大 |
 
-### region 方案的锯齿消除（核心技巧）
+### region 形状必须贴合真实 UI 轮廓（不要用外接矩形）
 
-region 边缘是硬切，消除思路是**让锯齿像素藏在 UI 不透明区域内**：
+- 形状清单：`球（kind 0 椭圆）+ 胶囊（kind 1 圆角矩形 r26）+ 进度线（kind 2 矩形）+ 卡片/菜单`。
+  早期版本报「hud 外接圆角矩形 +5px」：条上下 14px 的空隙落在 region 内却无 UI，
+  只能用光边层的近底色 cover 伪填充（浅色桌面下是可见的"假镂空"色块），
+  且光边被迫沿矩形走、悬在条上方 14px（用户反馈"光边太宽/不贴边"）。
+- **进度线必须单独纳入**：它在胶囊下方 6px，只报"球+胶囊"会被整个裁掉；
+  其 region 外扩 5px 由 `#progress` 的辉光 `box-shadow` 覆盖（否则外扩带显黑）。
+- region 边缘是硬切，消除思路是**让锯齿像素藏在 UI 绘制内部**：
+  1. 前端把每个形状 `getBoundingClientRect()` **各方向外扩 2 物理像素**后上报
+     （`app.js collectShapes()` → `set_window_region` 命令取并集 `SetWindowRgn`）。
+  2. 外扩带必须有绘制：CSS 形状边界之外、region 之内的一圈若没有任何绘制，
+     WebView 透明区会显黑。球缘由 `#glow-ball` 彩环覆盖、胶囊缘由 `#glow-bar` 彩环
+     覆盖——**两段彩环的 conic 必须全程非零 alpha**（最暗段 0.35），任何角度都不能空。
 
-1. 前端把每个 UI 形状的 `getBoundingClientRect()` **各方向外扩 2 物理像素**后上报
-   （`app.js collectShapes()` → `set_window_region` 命令取并集 `SetWindowRgn`）。
-   region 边缘比 CSS 形状大 2px，锯齿带落在 CSS 绘制范围内被覆盖，外露边缘走 CSS 抗锯齿。
-2. 环带必须有内容：region 外扩后，CSS 形状边界之外、region 之内的一圈若没有任何
-   绘制，WebView 透明区会显黑。用贴边光环（如 `#ball::before` inset:-2px 的 conic 边光）
-   覆盖，且 **conic 全程保持非零 alpha**（最暗段 0.1+），否则暗段露出黑边。
-3. 更彻底的遮盖：整体轮廓的流动光环（见下）本身就盖在 region 边缘上，锯齿不可见。
+### 流动光边（沿「球+胶囊」组合轮廓的两段跑马灯）
 
-### 流动光边（圆形/圆角矩形通用跑马灯）
-
-- 结构：独立 `#glow-ring` 层（absolute，`inset:-5px`，`border-radius` 取外轮廓圆角+5px），
-  放在 UI 元素后面（z-index 最低），包裹整体外轮廓而非单个元素。
+- **绝不要用 `transform: rotate` 转光边层**：转的不只是颜色分布，是整个矩形几何——
+  宽高比大的外接矩形环斜过来时环带被扫进球/条上下的空隙，表现为"窗口中间出现
+  旋转的多彩形状"（本项目用户实测反馈）。圆的元素转无妨，扁的/矩形的绝对不行。
+- 正确做法：**几何静止，只滚动 conic 起始角**——`@property --ring-a { syntax:'<angle>' }`
+  + `@keyframes { to { --ring-a:360deg } }`（WebView2 155 实测生效）。引用写成
+  `from var(--ring-a, 0deg)`：万一 @property 不支持，降级为静止彩环而非整条背景失效。
+- 光边按真实轮廓**拆成两段**（不是外接矩形环）：
+  - `#glow-ball`：85px 圆盘（球 80 + 两侧各 2.5px），同心于球；中部被不透明球体盖住，
+    只剩 2.5px 边光。它同时接管了球缘的石墨/柔光职责（旧的 `#ball::before` 静态蓝白
+    conic 与之同区叠加会把流动色冲成白色，已移除）。
+  - `#glow-bar`：胶囊外扩 2.5px 的圆角矩形（`left:37.5px; top:11.5px; right:-2.5px;
+    height:57px; r28.5`），左端藏进球后；`::after{inset:2.5px; border-radius:26px;
+    background:var(--ring-cover)}` 盖底色挖空。cover 区域恰与胶囊本体等形、被条完全盖住。
 - **挖空方式用「内层伪元素盖底色」，不要用 `mask-composite: exclude`**——WebView2 上
-  exclude 写法部分区域不渲染（右侧缺口）。实现：`#glow-ring` 整面 `conic-gradient`
-  多彩分段 + `animation: rotate Ns linear infinite`；`::after` `inset:2.5px` 同圆角盖
-  `--ring-cover` 纯色把中部挡住，只留 2.5px 环。
-- `--ring-cover` 随主题取近底色（浅色主题近白、深色近黑），环内非 UI 空隙看起来仍近"空"。
-- 注意：cover 层是实底色，被覆盖的环内空隙不再透出桌面——region 内的这些小空隙
-  （如条上下的余量）用近底色视觉上无感，属可接受折中。
+  exclude 写法部分区域不渲染（右侧缺口）。
+- 两段环各自以自身元素中心为 conic 圆心（球环绕球心、胶囊环绕胶囊中心）：接缝处颜色
+  不严格连续，但各自流动、整体观感成立；强行共用圆心会让其中一段的色相跨度所剩无几。
 
 ### 必须遵守的配套约束
 
@@ -159,9 +170,12 @@ region 边缘是硬切，消除思路是**让锯齿像素藏在 UI 不透明区�
 
 ### 涉及代码位置
 
-- `ui/app.js`：`collectShapes()`（形状外扩上报）、`updateWindowRegion()`（sig 去重）
-- `src-tauri/src/commands.rs`：`set_window_region`（GDI region 并集 + SetWindowRgn）
-- `ui/index.html`：`#glow-ring` 层；`ui/app.css`：光环动画与不透明背景变量
+- `ui/app.js`：`collectShapes()`（region 形状/外扩上报）、`updateWindowRegion()`（sig 去重）、
+  `collectRects()`（穿透判定，独立于 region）
+- `src-tauri/src/commands.rs`：`set_window_region`（GDI region 并集 + SetWindowRgn；
+  kind 0=椭圆 / 1=圆角矩形 / 2=矩形）
+- `ui/index.html`：`#glow-ball` / `#glow-bar` 两层；`ui/app.css`：`@property --ring-a` +
+  `ring-flow` 动画、`--ring-cover` 与不透明背景变量
 
 ## 踩坑速查（血泪台账，新坑请追加）
 
@@ -186,6 +200,8 @@ region 边缘是硬切，消除思路是**让锯齿像素藏在 UI 不透明区�
 | 17 | CSS 半透明背景像素丢失 | region 镂空下卡片/条区域直接透出桌面 | region+透明 WebView2 丢弃半透明 alpha；UI 背景一律不透明预混合色 |
 | 18 | 上报函数引用未定义变量 | 全窗穿透、交互静默全失效 | `collectShapes`/`collectRects` 抛异常 → rects 停更；先查 JS 控制台再怀疑 Win32 |
 | 19 | `mask-composite: exclude` 挖空 | 流动光环部分区域不渲染（右侧缺口） | WebView2 兼容差；改「内层伪元素盖底色挖空」 |
+| 20 | 光边层 `transform: rotate` 转外接矩形环 | 球/条上下的空隙里扫出"窗口中间旋转的多彩形状"——转的是矩形几何，不只是颜色 | 几何静止、只滚 `@property` conic 起始角；光边拆成贴合轮廓的球环+胶囊环 |
+| 21 | region 用 hud 外接矩形 | 条上下 14px 空隙落在 region 内→近底色伪填充（浅色桌面显"假镂空"色块）、光边悬空不贴边；region 改真轮廓后进度线被裁 | region 改报「球(椭圆)∪胶囊(r26)∪进度线(矩形)」；进度线的 region 外扩带用其辉光 box-shadow 覆盖 |
 
 ## 开发流程
 
