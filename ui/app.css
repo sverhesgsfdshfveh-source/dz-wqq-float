@@ -11,7 +11,8 @@ body {
   --bar-bg-hover: linear-gradient(180deg, #2b313d 0%, #10131b 100%);
   --bar-border: rgba(255, 255, 255, 0.08);
   --bar-border-hover: rgba(140, 180, 255, 0.28);
-  --card-bg: #12141c;
+  --card-bg1: #191c26;
+  --card-bg2: #12141c;
   --menu-bg: #1a1d26;
   --text: #f3f5fa;
   --text-dim: rgba(203, 212, 232, 0.52);
@@ -25,6 +26,7 @@ body {
   --prog-glow: rgba(180, 205, 255, 0.25);
   --link: #6ea8ff;
   --sel: rgba(110, 168, 255, 0.35);
+  /* 近底色（备用：光边如改回"整面挖空"画法时用作内层盖色；当前实心彩盘画法未用） */
   --ring-cover: #0a0d15;
   /* 球体（随主题，避免浅色主题下深球突兀） */
   --ball-g1: #33415f;
@@ -46,7 +48,8 @@ body {
     --bar-bg-hover: linear-gradient(180deg, #ffffff 0%, #f7f9fd 100%);
     --bar-border: rgba(20, 32, 54, 0.14);
     --bar-border-hover: rgba(70, 120, 210, 0.32);
-    --card-bg: #fafbfe;
+    --card-bg1: #ffffff;
+    --card-bg2: #f3f6fc;
     --menu-bg: #fcfdff;
     --text: #1c2433;
     --text-dim: rgba(40, 52, 74, 0.52);
@@ -87,36 +90,39 @@ body {
    - 几何静止、只滚动 conic 起始角（@property <angle> 插值）。早期版本用
      transform: rotate 转整个元素：矩形几何跟着转，环带斜着扫过球/条上下的
      空隙，出现"窗口中间旋转的多彩形状"。圆的元素转无妨，扁胶囊绝对不行。
-   - 环体仍用「整面 conic + 内层盖底色挖空」（mask-composite: exclude 在 WebView2
-     部分区域不渲染，弃用）。两段环的中部都被不透明的球/胶囊盖住，不外露。
-   - conic 全程保持非零 alpha（最暗 0.35）：球环兼作 region 外扩环带的覆盖层，
-     任何角度都不能露出 WebView 透明区（显黑） */
+   - 两段环都是**实心彩盘**：中部被不透明的球/胶囊本体盖住，只有外圈露出，
+     不需要再盖底色挖空（球环外径 42.5 / 球 40；胶囊盘 = 胶囊 +2.5px）。
+   - **外缘必须柔化（filter: blur）**：region（SetWindowRgn）是 1bit 裁剪，而球/
+     胶囊是整圈圆弧——"高饱和彩环 vs 桌面"的硬跳变被硬裁会出肉眼可见的锯齿。
+     blur 让彩盘向外渐隐，region 外扩到"渐隐尾部（alpha≈0.05）"处，
+     裁边两侧对比趋零 → 锯齿不可见。副产物是光边自带发光感。
+   - conic 全程保持非零 alpha（最暗 0.35），配合模糊尾部保证 region 内无空白
+     （WebView 透明区显黑） */
 @property --ring-a {
   syntax: '<angle>'; initial-value: 0deg; inherits: false;
 }
 #glow-ball, #glow-bar {
   position: absolute; z-index: 0; pointer-events: none;
+  /* alpha 取高档（最暗 0.6+）：blur 会把 2.5px 环摊薄成"柔光带"，alpha 低了
+     在深色桌面上会发暗（实测 0.35 档偏灰）；同时外扩带仍保持非零 alpha 防黑边 */
   background: conic-gradient(from var(--ring-a, 0deg),
-    rgba(0, 242, 254, 0.95) 0%,
-    rgba(79, 172, 254, 0.8) 12%,
-    rgba(120, 190, 255, 0.35) 26%,
-    rgba(130, 90, 255, 0.8) 40%,
-    rgba(60, 130, 255, 0.4) 54%,
-    rgba(240, 147, 251, 0.85) 68%,
-    rgba(120, 190, 255, 0.4) 80%,
-    rgba(0, 242, 254, 0.95) 100%);
+    rgba(0, 242, 254, 0.98) 0%,
+    rgba(79, 172, 254, 0.9) 12%,
+    rgba(120, 190, 255, 0.6) 26%,
+    rgba(130, 90, 255, 0.92) 40%,
+    rgba(70, 140, 255, 0.68) 54%,
+    rgba(240, 147, 251, 0.95) 68%,
+    rgba(120, 190, 255, 0.68) 80%,
+    rgba(0, 242, 254, 0.98) 100%);
   animation: ring-flow 4s linear infinite;
+  filter: blur(2px);
 }
 @keyframes ring-flow { to { --ring-a: 360deg; } }
-/* 球环：外径 85px（球 80 + 两侧各 2.5px 光边），同心于球；中部被球体盖住只剩边光 */
+/* 球环：实心圆盘 85px（球 80 + 两侧各 2.5px 光边），同心于球；中部被球体盖住 */
 #glow-ball { left: -2.5px; top: -2.5px; width: 85px; height: 85px; border-radius: 50%; }
-/* 胶囊环：贴合胶囊外缘 +2.5px（左端藏进球后，右上/右下与球环在轮廓交角处对接）；
-   内层伪元素盖 --ring-cover 挖出 2.5px 环，其区域与胶囊本体等形、被条完全盖住 */
+/* 胶囊环：实心圆角矩形 = 胶囊 +2.5px（左端藏进球后，右上/右下与球环在轮廓交角处对接）；
+   内缩 2.5px 后的形状与胶囊本体完全等形 → 中部被条盖住，只露外圈 */
 #glow-bar { left: 37.5px; top: 11.5px; right: -2.5px; height: 57px; border-radius: 28.5px; }
-#glow-bar::after {
-  content: ''; position: absolute; inset: 2.5px; border-radius: 26px;
-  background: var(--ring-cover);
-}
 @media (prefers-reduced-motion: reduce) {
   #glow-ball, #glow-bar { animation: none; }
 }
@@ -226,7 +232,7 @@ body {
    显示由 JS 加 .show 控制（卡片已移出 barwrap，hover 走 JS） */
 #card {
   position: absolute; top: 66px; left: 30px; right: 30px;
-  background: linear-gradient(180deg, #191c26 0%, #12141c 100%);
+  background: linear-gradient(180deg, var(--card-bg1) 0%, var(--card-bg2) 100%);
   border-radius: 0 0 16px 16px; border: 1px solid var(--line); border-top: none;
   padding: 0 18px;
   max-height: 0; opacity: 0; overflow: hidden;

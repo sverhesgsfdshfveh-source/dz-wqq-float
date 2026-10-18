@@ -213,14 +213,16 @@ function collectRects() {
 // 条上下与球外区域**完全镂空**。历史版本用「hud 整块外接圆角矩形 +5px」：
 // 条上下的 14px 空隙落在 region 内，只能用 --ring-cover 近底色伪填充；
 // 且旧流动光环沿此矩形转（transform 旋转），会在空隙里扫出"中间旋转的多彩形状"。
-// region 是 1bit 裁剪、边缘有锯齿，故每个形状**各方向外扩 2 物理像素**：
-// 锯齿带落在 CSS 绘制内部（球缘由 #glow-ball 彩环覆盖、胶囊缘由 #glow-bar 彩环覆盖）。
+// region 是 1bit 裁剪、边缘无抗锯齿，故每个形状**各方向外扩 4 物理像素**：
+// 外扩带落在光边（#glow-ball/#glow-bar）blur 后的渐隐尾部（alpha≈0.05）——
+// 裁边两侧对比趋零，弧线锯齿不可见（外扩 2px 时边界切在高饱和彩环上，锯齿明显）。
+// 进度线外扩 5px 同理（其辉光 box-shadow 覆盖外扩带）。
 function collectShapes() {
   const dpr = window.devicePixelRatio || 1;
   const shapes = [];
   const push = (kind, r, radius, expand) => {
     if (r.width <= 0 || r.height <= 0) return;
-    const e = expand || 2; // 默认外扩 2px 盖住 region 锯齿
+    const e = expand || 4; // 默认外扩 4px：落在光边模糊尾部，隐藏 region 锯齿
     const item = [
       kind,
       r.left * dpr - e,
@@ -231,8 +233,8 @@ function collectShapes() {
     if (radius !== undefined) item.push(radius * dpr);
     shapes.push(item);
   };
-  push(0, ball.getBoundingClientRect(), undefined, 2);      // 球（椭圆）
-  push(1, barwrap.getBoundingClientRect(), 26, 2);          // 胶囊
+  push(0, ball.getBoundingClientRect(), undefined, 4);      // 球（椭圆）
+  push(1, barwrap.getBoundingClientRect(), 26, 4);          // 胶囊
   // 进度线（条下 6px）：必须单独纳入，否则被裁；外扩 5px 容纳其辉光绘制带
   push(2, progress.getBoundingClientRect(), undefined, 5);
   // 卡片：展开时纳入 region；收起动画期间高度极小自动跳过
